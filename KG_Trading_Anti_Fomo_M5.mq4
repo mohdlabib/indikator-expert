@@ -6,7 +6,8 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, Mang Koyod"
 #property link      "https://www.mql5.com"
-#property version   "10.0"
+#property version   "10.1"
+#property description "XAUUSD SMC/ICT EA - default inputs = semi-automatic scalping profile (M5 chart)."
 #property strict
 
 #define AREA_COUNT   21
@@ -156,7 +157,7 @@ input bool     UseFallback      = true;                        // Abaikan Area N
 
 input string   Set_Entry_Area   = "====== FILTER AREA ENTRY ======";
 input ENUM_ENTRY_VALIDATION EntryValidationMode = ENTRY_MIN_2;    // Syarat Confluence Area
-input ENUM_PRIMARY_AREA PrimaryArea = PRIMARY_OBSCOUT;            // Area Utama (Aktif Jika ENTRY_MIN_2)
+input ENUM_PRIMARY_AREA PrimaryArea = PRIMARY_NONE;            // Area Utama (Aktif Jika ENTRY_MIN_2)
 input bool     Use_VA_Entry     = true;    // Gunakan Area VA (Micro) untuk Entry
 input bool     Use_POC_Entry    = true;    // Gunakan Area POC untuk Entry
 input bool     Use_SnD_Entry    = true;    // Gunakan Area SnD untuk Entry
@@ -178,7 +179,7 @@ input bool     Use_KGSupDemFibo_Entry = true;  // Gunakan Area Fibo KG SupDem un
 input bool     Use_FVG1_Entry   = true;    // Gunakan Area FVG 1 (Built-in) untuk Entry
 input bool     Use_FVG2_Entry   = true;    // Gunakan Area FVG 2 (Built-in) untuk Entry
 input bool     Use_FVG3_Entry   = true;    // Gunakan Area FVG 3 (Built-in) untuk Entry
-input int      ZoneTolerancePips= 150;         // Batas Toleransi Jarak Garis (Fibo, VWAP, BBMA) (Pips, 100 = $1)
+input int      ZoneTolerancePips= 60;         // Batas Toleransi Jarak Garis (Fibo, VWAP, BBMA) (Pips, 100 = $1)
 
 input string   Set_AO_Filter       = "====== KONFIRMASI AWESOME OSCILLATOR ======";
 input bool     Use_AO_Filter       = true;     // Aktifkan Filter AO M5 (Langkah ke-5)
@@ -187,34 +188,34 @@ input int      AO_Slow_Period      = 24;       // Periode Slow AO
 input bool     AO_UseClosedBar     = true;     // AO Pakai Candle Close (Anti Repaint) | false = Real-time
 
 input string   Batas_Posisi     = "====== BATAS POSISI ======";
-input int      MaxPosSearah     = 2;      // Maks. Posisi Searah (Averaging)
-input int      MaxPosBerlawanan = 2;      // Maks. Posisi Berlawanan (Hedging)
-input int      MaxDailyBuy      = 5;      // Maks. Entry BUY Per Hari (0 = Tanpa Batas)
-input int      MaxDailySell     = 5;      // Maks. Entry SELL Per Hari (0 = Tanpa Batas)
+input int      MaxPosSearah     = 1;      // Maks. Posisi Searah (Averaging)
+input int      MaxPosBerlawanan = 0;      // Maks. Posisi Berlawanan (Hedging)
+input int      MaxDailyBuy      = 6;      // Maks. Entry BUY Per Hari (0 = Tanpa Batas)
+input int      MaxDailySell     = 6;      // Maks. Entry SELL Per Hari (0 = Tanpa Batas)
 input int      MagicNumber      = 888999; // Magic Number EA
-input int      Slippage         = 30;     // Batasan Slippage (Pips, 100 = $1)
+input int      Slippage         = 20;     // Batasan Slippage (Pips, 100 = $1)
 
 input string   Set_Averaging    = "====== PENGATURAN JANGKA ENTRY ======";
 input int      StepDistancePips = 200;    // Jarak minimal antar entry searah (Pips)
 
 input string   Section_Risk     = "====== MANAGEMEN RESIKO ======";
-input double   RiskPercent      = 1.0;    // Persentase Risiko per trade (%)
-input int      StopLossPips     = 1000;   // Default Stop Loss (Pips, 1000 = $10)
-input int      TakeProfitPips   = 2000;   // Default Take Profit (Pips, 2000 = $20)
+input double   RiskPercent      = 0.5;    // Persentase Risiko per trade (%)
+input int      StopLossPips     = 400;   // Default Stop Loss (Pips, 400 = $4) - dipakai jika ATR OFF
+input int      TakeProfitPips   = 600;   // Default Take Profit (Pips, 600 = $6) - dipakai jika ATR OFF
 input double   FixedLotSize     = 0.0;    // Lot Tetap (0 = Pakai Persentase Risiko)
-input double   MaxSpreadPips    = 50.0;   // Maks. Spread saat Entry (Pips, 50 = $0.50, 0 = Off)
-input double   MaxDailyLossPct  = 3.0;    // Stop Entry Baru jika Rugi Harian >= % Balance (0 = Off)
+input double   MaxSpreadPips    = 30.0;   // Maks. Spread saat Entry (Pips, 50 = $0.50, 0 = Off)
+input double   MaxDailyLossPct  = 2.0;    // Stop Entry Baru jika Rugi Harian >= % Balance (0 = Off)
 
 input string   Break_Even_Point = "====== BREAK EVEN POINT ======";
-input bool     UseSmartBEP      = false;  // Aktifkan Smart BEP
-input double   BEPTriggerPct    = 30.0;   // Pemicu BEP (% dari TP)
-input int      BEPExtraPips     = 100;    // Ekstra Pips saat BEP (Lock Profit)
+input bool     UseSmartBEP      = true;  // Aktifkan Smart BEP
+input double   BEPTriggerPct    = 60.0;   // Pemicu BEP (% dari TP)
+input int      BEPExtraPips     = 30;    // Ekstra Pips saat BEP (Lock Profit)
 
 input string   Trailing_Stop    = "====== TRAILING STOP ======";
-input bool     UseTrailingStop  = false;  // Aktifkan Trailing Stop
-input int      TrailingStartPips= 1500;   // Profit awal untuk mulai Trailing (Pips, < TP)
-input int      TrailingDistance = 700;    // Jarak SL menguntit harga (Pips)
-input int      TrailingStep     = 200;    // Lompatan perpindahan SL (Pips)
+input bool     UseTrailingStop  = true;  // Aktifkan Trailing Stop
+input int      TrailingStartPips= 500;   // Profit awal untuk mulai Trailing (Pips, < TP)
+input int      TrailingDistance = 300;    // Jarak SL menguntit harga (Pips)
+input int      TrailingStep     = 50;    // Lompatan perpindahan SL (Pips)
 
 input string   Set_XAU_ICT      = "====== KHUSUS XAUUSD (SMC / ICT) ======";
 input bool     RestrictToGold   = true;    // Hanya Jalan di Chart XAU / GOLD
@@ -224,7 +225,7 @@ input bool     KZ_London        = true;    // London Killzone 02:00-05:00 NY
 input bool     KZ_NewYorkAM     = true;    // New York AM Killzone 07:00-10:00 NY
 input bool     KZ_LondonClose   = false;   // London Close Killzone 10:00-12:00 NY
 input bool     KZ_NewYorkPM     = false;   // New York PM Killzone 13:30-16:00 NY
-input int      FridayCutoffNY   = 12;      // Stop Entry Baru Jumat mulai Jam NY (0 = Off)
+input int      FridayCutoffNY   = 11;      // Stop Entry Baru Jumat mulai Jam NY (0 = Off)
 input bool     UsePremiumDiscount = true;  // ICT: Buy Hanya di Discount, Sell Hanya di Premium
 input ENUM_PD_SOURCE PD_Source  = PD_SMC2; // Dealing Range Premium/Discount
 input bool     ICT_OTEOnly      = false;   // Area SMC Fibo Hanya Level OTE (61.8 & 78.6)
@@ -239,31 +240,31 @@ input double   W_BBMA           = 1.0;     // Bobot per BBMA (Keluarga MA)
 input double   W_MA             = 1.0;     // Bobot per MA Cross (Keluarga MA)
 
 input string   Set_BuiltIn      = "====== INDIKATOR BUILT-IN (SMC & MARKET PROFILE) ======";
-input ENUM_DATA_SOURCE SMC_Source = SRC_AUTO;      // Sumber Data SMC
-input ENUM_TIMEFRAMES SMC1_TF   = PERIOD_M5;       // Timeframe SMC 1 (Minor) Built-in
-input ENUM_TIMEFRAMES SMC2_TF   = PERIOD_H1;       // Timeframe SMC 2 (Medium) Built-in
-input ENUM_TIMEFRAMES SMC3_TF   = PERIOD_H4;       // Timeframe SMC 3 (Major) Built-in
-input int      SMC_SwingLen     = 3;       // Panjang Swing (Bar Kiri/Kanan)
+input ENUM_DATA_SOURCE SMC_Source = SRC_BUILTIN;      // Sumber Data SMC
+input ENUM_TIMEFRAMES SMC1_TF   = PERIOD_M1;       // Timeframe SMC 1 (Minor) Built-in
+input ENUM_TIMEFRAMES SMC2_TF   = PERIOD_M15;       // Timeframe SMC 2 (Medium) Built-in
+input ENUM_TIMEFRAMES SMC3_TF   = PERIOD_H1;       // Timeframe SMC 3 (Major) Built-in
+input int      SMC_SwingLen     = 2;       // Panjang Swing (Bar Kiri/Kanan)
 input int      SMC_Lookback     = 300;     // Jumlah Bar Analisa SMC
-input int      MinFVGPips       = 30;      // Ukuran Minimal FVG (Pips, 30 = $0.30)
+input int      MinFVGPips       = 20;      // Ukuran Minimal FVG (Pips, 30 = $0.30)
 input ENUM_DATA_SOURCE MP_Source = SRC_AUTO;       // Sumber Data Market Profile
-input ENUM_TIMEFRAMES MP_Timeframe = PERIOD_M5;    // Timeframe Data Market Profile
-input int      MP_LookbackHours = 24;      // Rentang Profil (Jam Terakhir)
-input int      MP_BinPips       = 50;      // Ukuran Level Profil (Pips, 50 = $0.50)
+input ENUM_TIMEFRAMES MP_Timeframe = PERIOD_M1;    // Timeframe Data Market Profile
+input int      MP_LookbackHours = 8;      // Rentang Profil (Jam Terakhir)
+input int      MP_BinPips       = 20;      // Ukuran Level Profil (Pips, 50 = $0.50)
 input double   MP_ValueAreaPct  = 70.0;    // Value Area (%)
 input bool     DrawBuiltIn      = true;    // Gambar Level Built-in di Chart
 
 input string   Set_Scalping     = "====== SCALPING & SEMI-OTOMATIS ======";
-input bool     UseATRStops      = false;   // SL/TP Dinamis Berdasarkan ATR (Scalping)
+input bool     UseATRStops      = true;   // SL/TP Dinamis Berdasarkan ATR (Scalping)
 input ENUM_TIMEFRAMES ATR_TF    = PERIOD_M5; // Timeframe ATR
 input int      ATR_Period       = 14;      // Periode ATR
 input double   ATR_SL_Mult      = 1.5;     // SL = ATR x Pengali
 input double   TP_RR            = 1.5;     // TP = SL x Risk:Reward (Mode ATR)
 input int      ATR_MinSLPips    = 250;     // SL Minimal Mode ATR (Pips, 250 = $2.50)
-input int      ATR_MaxSLPips    = 1000;    // SL Maksimal Mode ATR (Pips, 1000 = $10)
-input int      MaxHoldMinutes   = 0;       // Tutup Posisi Setelah N Menit (0 = Off)
+input int      ATR_MaxSLPips    = 800;    // SL Maksimal Mode ATR (Pips, 1000 = $10)
+input int      MaxHoldMinutes   = 45;       // Tutup Posisi Setelah N Menit (0 = Off)
 input bool     ShowCloseButtons = true;    // Tampilkan Tombol CLOSE ALL & CLOSE PROFIT
-input bool     PushOnSignal     = false;   // Kirim Notifikasi ke HP saat Sinyal Valid
+input bool     PushOnSignal     = true;   // Kirim Notifikasi ke HP saat Sinyal Valid
 
 input string   Set_Performance  = "====== PERFORMA ======";
 input int      AnalysisIntervalMs = 250;  // Interval Analisa Sinyal (ms, 0 = Setiap Tick)
