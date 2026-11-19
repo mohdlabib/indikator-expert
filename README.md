@@ -50,6 +50,15 @@ The EA reads chart objects drawn by these indicators, so they must be on the sam
 - **Lot size** is rounded down to the lot step so the risk never exceeds `RiskPercent`; free
   margin is checked before sending the order.
 - Panel lines no longer write past the 35 available labels.
+- Panel was unreadable on light chart backgrounds (white/yellow/light-green text on white). Colours
+  now follow the chart background and update when the background colour changes.
+
+### Changed defaults
+
+`PanelXDistance = 1550`, `PanelTextColor = clrBlack`, `HighlightColor = clrMediumBlue`,
+`SMC1_Prefix = SMC_M5_`, `SMC2_Prefix = SMC_H1_`, `SMC3_Prefix = SMC_H4_` (matching the KG BOS
+CHOCH OrderBlock instances used on the M5/H1/H4 setup). Values from a loaded `.set` file still
+take precedence.
 
 ### Efficiency
 
@@ -71,6 +80,7 @@ The EA reads chart objects drawn by these indicators, so they must be on the sam
 | `FixedLotSize` (`0`) | Fixed lot; `0` keeps risk-based sizing. |
 | `MaxSpreadPips` (`0` = off) | Blocks new entries while the spread is above this value. |
 | `MaxDailyLossPct` (`0` = off) | Blocks new entries for the day once closed + floating P/L of managed orders reaches `-X%` of the day's starting balance. |
+| `AutoPanelColors` (`true`) | Picks panel text/status colours from the chart background (dark text on light charts, light text on dark charts) so the dashboard stays readable. Set `false` to use `PanelTextColor` / `HighlightColor`. |
 | `AnalysisIntervalMs` (`250`) | Minimum time between signal analyses; `0` = every tick. Strategy Tester always runs every tick. |
 
 ## Notes

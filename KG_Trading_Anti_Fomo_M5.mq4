@@ -92,11 +92,12 @@ input string   Set_Hidden       = "====== HIDDEN PROTEKSI ======";
 input bool     UseHiddenSLTP    = false;              // Sembunyikan SL, TP, Trailing dari broker
 
 input string   Set_Display      = "====== PENGATURAN TAMPILAN ======";
-input int      PanelXDistance   = 1600;    // Posisi Panel Sumbu X (Geser Kiri/Kanan)
+input int      PanelXDistance   = 1550;    // Posisi Panel Sumbu X (Geser Kiri/Kanan)
 input bool     CleanTradeLines  = true;    // Bersihkan Garis & Panah Histori Trade
 input bool     ShowTrendDetails = true;    // Tampilkan Detail Status Alat Ukur Trend
-input color    PanelTextColor   = clrWhite;
-input color    HighlightColor   = clrYellow;
+input color    PanelTextColor   = clrBlack;      // Warna Teks Panel (dipakai jika Auto OFF)
+input color    HighlightColor   = clrMediumBlue; // Warna Judul Panel (dipakai jika Auto OFF)
+input bool     AutoPanelColors  = true;          // Warna Panel Otomatis Sesuai Background Chart
 
 input string   Main_Trend = "====== ALAT UKUR TREND UTAMA ======";
 input bool     UseTrend_VAPOC   = true;    // Aktifkan Trend VA/POC
@@ -122,9 +123,9 @@ input ENUM_KG_TIMEFRAME EMA2_Fast_Period = KG_1D;   // Acuan Waktu Fast MA 2 (Be
 input ENUM_KG_TIMEFRAME EMA2_Slow_Period = KG_1W;   // Acuan Waktu Slow MA 2 (Besar)
 input ENUM_KG_TIMEFRAME BBMA1_Timeframe = KG_4H;    // Acuan Waktu BBMA 1 (Kecil)
 input ENUM_KG_TIMEFRAME BBMA2_Timeframe = KG_1D;    // Acuan Waktu BBMA 2 (Besar)
-input string   SMC1_Prefix      = "SMC_1_";         // Prefix Indikator SMC 1 (Minor)
-input string   SMC2_Prefix      = "SMC_2_";         // Prefix Indikator SMC 2 (Medium)
-input string   SMC3_Prefix      = "SMC_3_";         // Prefix Indikator SMC 3 (Major)
+input string   SMC1_Prefix      = "SMC_M5_";        // Prefix Indikator SMC 1 (Minor)
+input string   SMC2_Prefix      = "SMC_H1_";        // Prefix Indikator SMC 2 (Medium)
+input string   SMC3_Prefix      = "SMC_H4_";        // Prefix Indikator SMC 3 (Major)
 input string   SMCScout_Prefix  = "SMC_Scout_";     // Prefix Indikator SMC OB Scout
 input bool     Aggressive_POI_Entry = true;         // Izinkan SMC Vote Searah Mayor di Zona Discount/Premium
 input string   KGFibo_Prefix    = "Fibo_1_";        // Keyword Nama Indikator KG Fibo
@@ -226,6 +227,10 @@ int      g_DayBuy = 0;
 int      g_DaySell = 0;
 double   g_DayClosedPL = 0.0;
 
+// --- Panel palette (chosen for contrast against the chart background) ---
+bool     g_LightChart = false;
+color    g_ColText, g_ColHighlight, g_ColBuy, g_ColSell, g_ColNeutral, g_ColWarn, g_ColBarBG;
+
 //--- Parameter Visual Tombol
 const int baseXSize  = 120;
 const int baseYSize  = 35;
@@ -257,6 +262,7 @@ int OnInit() {
     ArrayResize(g_TrackedColors, 0);
     ArrayResize(g_TrackedChangeTime, 0);
 
+    InitPanelColors();
     CreatePanel();
     return(INIT_SUCCEEDED);
 }
@@ -1472,6 +1478,21 @@ void CleanHistoryObjects() {
 //====================================================================
 // FUNGSI UI PANEL LEADERBOARD
 //====================================================================
+// Picks readable colours: dark text on light charts, light text on dark charts.
+void InitPanelColors() {
+    int bg = (int)ChartGetInteger(0, CHART_COLOR_BACKGROUND);
+    int r = bg & 0xFF, g = (bg >> 8) & 0xFF, b = (bg >> 16) & 0xFF;   // color = 0x00BBGGRR
+    g_LightChart = (0.299 * r + 0.587 * g + 0.114 * b) > 128.0;
+
+    g_ColText      = AutoPanelColors ? (g_LightChart ? clrBlack : clrWhite) : PanelTextColor;
+    g_ColHighlight = AutoPanelColors ? (g_LightChart ? clrMediumBlue : clrYellow) : HighlightColor;
+    g_ColBuy       = g_LightChart ? clrGreen : clrLimeGreen;
+    g_ColSell      = g_LightChart ? clrCrimson : clrRed;
+    g_ColNeutral   = g_LightChart ? clrDimGray : clrSilver;
+    g_ColWarn      = g_LightChart ? clrChocolate : clrCoral;
+    g_ColBarBG     = g_LightChart ? clrGainsboro : clrDarkSlateGray;
+}
+
 void CreatePanel() {
     int startY = 20;
     int startX = PanelXDistance;
@@ -1482,7 +1503,7 @@ void CreatePanel() {
     ObjectSetInteger(0, "ProgBar_BG", OBJPROP_YDISTANCE, startY + 2);
     ObjectSetInteger(0, "ProgBar_BG", OBJPROP_XSIZE, 120);
     ObjectSetInteger(0, "ProgBar_BG", OBJPROP_YSIZE, 20);
-    ObjectSetInteger(0, "ProgBar_BG", OBJPROP_BGCOLOR, clrDarkSlateGray);
+    ObjectSetInteger(0, "ProgBar_BG", OBJPROP_BGCOLOR, g_ColBarBG);
     ObjectSetInteger(0, "ProgBar_BG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
     ObjectSetInteger(0, "ProgBar_BG", OBJPROP_COLOR, clrNONE);
 
@@ -1506,7 +1527,7 @@ void CreatePanel() {
             ObjectSetInteger(0, name, OBJPROP_XDISTANCE, startX);
             ObjectSetInteger(0, name, OBJPROP_YDISTANCE, startY + (i * 20));
         }
-        ObjectSetInteger(0, name, OBJPROP_COLOR, PanelTextColor);
+        ObjectSetInteger(0, name, OBJPROP_COLOR, g_ColText);
         ObjectSetString(0, name, OBJPROP_FONT, "Consolas");
         ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
         ObjectSetString(0, name, OBJPROP_TEXT, " ");
@@ -1543,18 +1564,20 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
     double maxPct = MathMax(bullPct, bearPct);
     int currentWidth = (int)MathRound((maxPct / 100.0) * 120);
 
-    color trendColor = clrGray;
-    if(bullPct > bearPct) trendColor = clrLimeGreen;
-    else if(bearPct > bullPct) trendColor = clrRed;
+    color trendColor = g_ColNeutral;
+    if(bullPct > bearPct) trendColor = g_ColBuy;
+    else if(bearPct > bullPct) trendColor = g_ColSell;
+
+    ObjectSetInteger(0, "ProgBar_BG", OBJPROP_BGCOLOR, g_ColBarBG);
 
     ObjectSetInteger(0, "ProgBar_FG", OBJPROP_XSIZE, currentWidth);
     ObjectSetInteger(0, "ProgBar_FG", OBJPROP_BGCOLOR, trendColor);
 
     SetLine(0, trendText, trendColor);
-    int line = SetLine(1, separator, PanelTextColor);
+    int line = SetLine(1, separator, g_ColText);
 
     if(ShowTrendDetails) {
-        line = SetLine(line, "[+] STATUS TREND:", HighlightColor);
+        line = SetLine(line, "[+] STATUS TREND:", g_ColHighlight);
 
         string tNames[TREND_SLOTS] = {"VA/POC", "SMC Matrix", "SMC 2 (Medium)", "VWAP 1 (Harian)", "VWAP 2 (2-Hari)",
                                       "BBMA 1 (Kecil)", "BBMA 2 (Besar)", "MA Cross 1 (Kecil)", "MA Cross 2 (Besar)", "SMC 3 (Major)"};
@@ -1564,38 +1587,38 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
             if(trendList[i] == -99) continue;
             if((i == 2 || i == 9) && smcActive) continue;
 
-            color tCol = clrGray;
+            color tCol = g_ColNeutral;
             if(i == 1 && smcActive) {
-                tCol = (trendList[1] == 1) ? clrLimeGreen : ((trendList[1] == -1) ? clrRed : clrCoral);
+                tCol = (trendList[1] == 1) ? g_ColBuy : ((trendList[1] == -1) ? g_ColSell : g_ColWarn);
                 line = SetLine(line, "- " + smcText, tCol);
             } else {
                 string tStr = "";
-                if(trendList[i] == 1)       { tStr = "BUYERS";  tCol = clrLimeGreen; }
-                else if(trendList[i] == -1) { tStr = "SELLERS"; tCol = clrRed; }
-                else                        { tStr = "NETRAL";  tCol = clrGray; }
+                if(trendList[i] == 1)       { tStr = "BUYERS";  tCol = g_ColBuy; }
+                else if(trendList[i] == -1) { tStr = "SELLERS"; tCol = g_ColSell; }
+                else                        { tStr = "NETRAL";  tCol = g_ColNeutral; }
                 string displayName = (i == 1) ? "SMC 1 (Minor)" : tNames[i];
                 line = SetLine(line, "- " + displayName + " : " + tStr, tCol);
             }
             activeTrendCount++;
         }
 
-        if(activeTrendCount == 0) line = SetLine(line, "- Semua Alat OFF", clrGray);
-        line = SetLine(line, separator, PanelTextColor);
+        if(activeTrendCount == 0) line = SetLine(line, "- Semua Alat OFF", g_ColNeutral);
+        line = SetLine(line, separator, g_ColText);
     }
 
-    line = SetLine(line, ">> ACTIVE ENTRY AREAS:", HighlightColor);
+    line = SetLine(line, ">> ACTIVE ENTRY AREAS:", g_ColHighlight);
 
     int activeCount = 0;
     if(finalTrend != 0) {
         for(int i = 0; i < AREA_COUNT; i++) {
             if(!IsInZone(list[i]) || list[i].Type != finalTrend) continue;
             string dir = (list[i].Type == 1) ? "(Support)" : "(Resistance)";
-            line = SetLine(line, "- " + list[i].Name + " : In Zone " + dir, (list[i].Type == 1) ? clrLimeGreen : clrRed);
+            line = SetLine(line, "- " + list[i].Name + " : In Zone " + dir, (list[i].Type == 1) ? g_ColBuy : g_ColSell);
             activeCount++;
         }
     }
-    if(activeCount == 0) line = SetLine(line, "- No Entry Area", clrGray);
-    line = SetLine(line, separator, PanelTextColor);
+    if(activeCount == 0) line = SetLine(line, "- No Entry Area", g_ColNeutral);
+    line = SetLine(line, separator, g_ColText);
 
     for(int i = line; i < UI_LINES; i++) ObjectSetString(0, "UI_Line" + IntegerToString(i), OBJPROP_TEXT, " ");
 
@@ -1634,6 +1657,7 @@ void PressButton(string name, int baseX, int type) {
 }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+    if(id == CHARTEVENT_CHART_CHANGE) { InitPanelColors(); return; }   // e.g. background colour changed
     if(id != CHARTEVENT_OBJECT_CLICK) return;
     if(sparam == "Btn_Buy")  PressButton("Btn_Buy", PanelXDistance + baseXSize + 10, OP_BUY);
     if(sparam == "Btn_Sell") PressButton("Btn_Sell", PanelXDistance, OP_SELL);
