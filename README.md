@@ -84,6 +84,35 @@ take precedence.
 | `HideOneClickPanel` (`true`) | Hides the built-in MT4 One Click Trading panel so only the EA BUY/SELL buttons are shown; it is restored when the EA is removed. |
 | `AnalysisIntervalMs` (`250`) | Minimum time between signal analyses; `0` = every tick. Strategy Tester always runs every tick. |
 
+## XAUUSD / SMC-ICT profile
+
+The EA is tuned for XAUUSD and SMC/ICT entries.
+
+- **Gold only.** `RestrictToGold = true` refuses to start on symbols without `XAU`/`GOLD`.
+- **Pip = $0.01** on every gold quote (2- or 3-digit brokers), so `100 pips = $1`. Slippage is
+  converted from these pips to broker points.
+- **ICT killzones** (`UseKillzone`): automatic/semi signals are only valid inside the enabled
+  windows, defined in New York time: London 02:00-05:00 and New York AM 07:00-10:00 (on by default),
+  London Close 10:00-12:00 and New York PM 13:30-16:00 (off). `ServerOffsetFromNY` converts server
+  time to New York time; 7 fits the usual GMT+2/GMT+3 (New York close = server midnight) servers.
+- **Premium / Discount** (`UsePremiumDiscount`): a BUY is only valid at or below the equilibrium
+  (Fibo 50%) of the selected SMC dealing range (`PD_Source`, default SMC 2), a SELL only at or above
+  it. When the indicator has not drawn that Fibo object, the filter does not block.
+- **OTE** (`ICT_OTEOnly`): optionally limits SMC Fibo entry areas to the 61.8/78.6 levels.
+- **Friday cut-off** (`FridayCutoffNY = 12`): no new entries on Friday from 12:00 New York time,
+  to avoid weekend gaps.
+- Killzone and premium/discount shape the signal (AUTO/SEMI); in MANUAL mode the buttons stay free.
+  Spread, daily-loss and Friday filters block every new entry, including manual clicks.
+
+| Input | New default | In price |
+| --- | --- | --- |
+| `Slippage` | 30 | $0.30 |
+| `TakeProfitPips` | 2000 | $20 (RR 1:2 with SL $10) |
+| `ZoneTolerancePips` | 150 | $1.50 |
+| `MaxSpreadPips` | 50 | $0.50 |
+| `MaxDailyLossPct` | 3 | 3% of day-start balance |
+| `TrailingStartPips` / `TrailingDistance` / `TrailingStep` | 1500 / 700 / 200 | $15 / $7 / $2 |
+
 ## Notes
 
 - `RiskPercent` cannot go below the broker's minimum lot: when the calculated lot is smaller,

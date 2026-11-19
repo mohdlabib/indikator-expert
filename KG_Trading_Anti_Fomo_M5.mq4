@@ -64,6 +64,13 @@ enum ENUM_PRIMARY_AREA {
     PRIMARY_KGSUPDEM_FIBO // Wajib KG SupDem Fibo
 };
 
+// --- Sumber Dealing Range untuk Premium/Discount (ICT) ---
+enum ENUM_PD_SOURCE {
+    PD_SMC1,  // SMC 1 (Minor)
+    PD_SMC2,  // SMC 2 (Medium)
+    PD_SMC3   // SMC 3 (Major)
+};
+
 // --- Definisi Waktu Sesuai Standar Multiplier Kang Gun ---
 enum ENUM_KG_TIMEFRAME {
     KG_M30,
@@ -157,7 +164,7 @@ input bool     Use_BBMA1_Entry  = true;    // Gunakan Area BBMA 1 (Kecil) untuk 
 input bool     Use_BBMA2_Entry  = true;    // Gunakan Area BBMA 2 (Besar) untuk Entry
 input bool     Use_KGSupDem_Entry = true;      // Gunakan Area KG SupDem untuk Entry
 input bool     Use_KGSupDemFibo_Entry = true;  // Gunakan Area Fibo KG SupDem untuk Entry
-input int      ZoneTolerancePips= 500;         // Batas Toleransi Jarak Garis (Fibo, VWAP, BBMA) (Pips)
+input int      ZoneTolerancePips= 150;         // Batas Toleransi Jarak Garis (Fibo, VWAP, BBMA) (Pips, 100 = $1)
 
 input string   Set_AO_Filter       = "====== KONFIRMASI AWESOME OSCILLATOR ======";
 input bool     Use_AO_Filter       = true;     // Aktifkan Filter AO M5 (Langkah ke-5)
@@ -171,18 +178,18 @@ input int      MaxPosBerlawanan = 2;      // Maks. Posisi Berlawanan (Hedging)
 input int      MaxDailyBuy      = 5;      // Maks. Entry BUY Per Hari (0 = Tanpa Batas)
 input int      MaxDailySell     = 5;      // Maks. Entry SELL Per Hari (0 = Tanpa Batas)
 input int      MagicNumber      = 888999; // Magic Number EA
-input int      Slippage         = 3;      // Batasan Slippage (Pips)
+input int      Slippage         = 30;     // Batasan Slippage (Pips, 100 = $1)
 
 input string   Set_Averaging    = "====== PENGATURAN JANGKA ENTRY ======";
 input int      StepDistancePips = 200;    // Jarak minimal antar entry searah (Pips)
 
 input string   Section_Risk     = "====== MANAGEMEN RESIKO ======";
 input double   RiskPercent      = 1.0;    // Persentase Risiko per trade (%)
-input int      StopLossPips     = 1000;   // Default Stop Loss (Pips)
-input int      TakeProfitPips   = 1000;   // Default Take Profit (Pips)
+input int      StopLossPips     = 1000;   // Default Stop Loss (Pips, 1000 = $10)
+input int      TakeProfitPips   = 2000;   // Default Take Profit (Pips, 2000 = $20)
 input double   FixedLotSize     = 0.0;    // Lot Tetap (0 = Pakai Persentase Risiko)
-input double   MaxSpreadPips    = 0.0;    // Maks. Spread saat Entry (Pips, 0 = Off)
-input double   MaxDailyLossPct  = 0.0;    // Stop Entry Baru jika Rugi Harian >= % Balance (0 = Off)
+input double   MaxSpreadPips    = 50.0;   // Maks. Spread saat Entry (Pips, 50 = $0.50, 0 = Off)
+input double   MaxDailyLossPct  = 3.0;    // Stop Entry Baru jika Rugi Harian >= % Balance (0 = Off)
 
 input string   Break_Even_Point = "====== BREAK EVEN POINT ======";
 input bool     UseSmartBEP      = false;  // Aktifkan Smart BEP
@@ -191,9 +198,22 @@ input int      BEPExtraPips     = 100;    // Ekstra Pips saat BEP (Lock Profit)
 
 input string   Trailing_Stop    = "====== TRAILING STOP ======";
 input bool     UseTrailingStop  = false;  // Aktifkan Trailing Stop
-input int      TrailingStartPips= 3000;   // Profit awal untuk mulai Trailing
-input int      TrailingDistance = 1000;   // Jarak SL menguntit harga
-input int      TrailingStep     = 500;    // Lompatan perpindahan SL
+input int      TrailingStartPips= 1500;   // Profit awal untuk mulai Trailing (Pips, < TP)
+input int      TrailingDistance = 700;    // Jarak SL menguntit harga (Pips)
+input int      TrailingStep     = 200;    // Lompatan perpindahan SL (Pips)
+
+input string   Set_XAU_ICT      = "====== KHUSUS XAUUSD (SMC / ICT) ======";
+input bool     RestrictToGold   = true;    // Hanya Jalan di Chart XAU / GOLD
+input int      ServerOffsetFromNY = 7;     // Selisih Jam Server vs New York (Server GMT+2/+3 = 7)
+input bool     UseKillzone      = true;    // Entry Otomatis/Semi Hanya di ICT Killzone
+input bool     KZ_London        = true;    // London Killzone 02:00-05:00 NY
+input bool     KZ_NewYorkAM     = true;    // New York AM Killzone 07:00-10:00 NY
+input bool     KZ_LondonClose   = false;   // London Close Killzone 10:00-12:00 NY
+input bool     KZ_NewYorkPM     = false;   // New York PM Killzone 13:30-16:00 NY
+input int      FridayCutoffNY   = 12;      // Stop Entry Baru Jumat mulai Jam NY (0 = Off)
+input bool     UsePremiumDiscount = true;  // ICT: Buy Hanya di Discount, Sell Hanya di Premium
+input ENUM_PD_SOURCE PD_Source  = PD_SMC2; // Dealing Range Premium/Discount
+input bool     ICT_OTEOnly      = false;   // Area SMC Fibo Hanya Level OTE (61.8 & 78.6)
 
 input string   Set_Performance  = "====== PERFORMA ======";
 input int      AnalysisIntervalMs = 250;  // Interval Analisa Sinyal (ms, 0 = Setiap Tick)
@@ -229,6 +249,7 @@ int      g_DaySell = 0;
 double   g_DayClosedPL = 0.0;
 
 // --- Panel palette (chosen for contrast against the chart background) ---
+bool     g_IsGold = false;
 bool     g_LightChart = false;
 bool     g_OneClickWasShown = false;   // restored on removal
 color    g_ColText, g_ColHighlight, g_ColBuy, g_ColSell, g_ColNeutral, g_ColWarn, g_ColBarBG;
@@ -250,6 +271,15 @@ struct EntryInfo {
 //| INISIALISASI                                                     |
 //+------------------------------------------------------------------+
 int OnInit() {
+    g_IsGold = IsGoldSymbol();
+    if(RestrictToGold && !g_IsGold) {
+        Alert("EA ini khusus XAUUSD. Pasang di chart XAU/GOLD, atau set RestrictToGold = false.");
+        return(INIT_FAILED);
+    }
+    if(ServerOffsetFromNY < -12 || ServerOffsetFromNY > 14) {
+        Print("ServerOffsetFromNY harus di antara -12 dan 14.");
+        return(INIT_PARAMETERS_INCORRECT);
+    }
     if(Use_AO_Filter && (AO_Fast_Period <= 0 || AO_Slow_Period <= AO_Fast_Period)) {
         Print("Parameter AO tidak valid: Fast harus > 0 dan lebih kecil dari Slow.");
         return(INIT_PARAMETERS_INCORRECT);
@@ -308,13 +338,21 @@ int GetKGPeriod(ENUM_KG_TIMEFRAME tf) {
     return finalPeriod;
 }
 
+bool IsGoldSymbol() {
+    string s = Symbol();
+    StringToUpper(s);
+    return (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0);
+}
+
+// Gold: 1 pip = $0.01 on every broker (2- or 3-digit quotes). Others: classic pip.
 double GetPipValue() {
+    if(g_IsGold) return 0.01;
     if(Digits == 3 || Digits == 5) return Point * 10.0;
     return Point;
 }
 
 int SlippagePoints() {
-    return (Digits == 3 || Digits == 5) ? Slippage * 10 : Slippage;
+    return (int)MathRound(Slippage * GetPipValue() / Point);
 }
 
 double ObjPrice(string name, int anchor) { return ObjectGetDouble(0, name, OBJPROP_PRICE, anchor); }
@@ -363,6 +401,7 @@ bool HasNumberToken(string s, string num) {
 
 bool IsSMCFiboLevel(string name) {
     if(StringFind(name, "_OB_") >= 0 || StringFind(name, "_CH_") >= 0 || StringFind(name, "_BOS_") >= 0) return false;
+    if(ICT_OTEOnly) return HasNumberToken(name, "61") || HasNumberToken(name, "78");   // ICT OTE band
     return HasNumberToken(name, "50") || HasNumberToken(name, "61") ||
            HasNumberToken(name, "78") || HasNumberToken(name, "100");
 }
@@ -403,6 +442,36 @@ double GetFibo50Price(string prefix, int trendDirection) {
     else if(trendDirection == -1) objName = prefix + "FIBO_EA_BEAR_50";
     if(objName != "" && ObjectFind(0, objName) >= 0) return ObjPrice(objName, 0);
     return 0.0;
+}
+
+// ICT killzones are defined in New York time; nyTime = server time - ServerOffsetFromNY.
+bool InKillzone(datetime nyTime, string &name) {
+    int m = TimeHour(nyTime) * 60 + TimeMinute(nyTime);
+    if(KZ_London      && m >= 120 && m < 300) { name = "London KZ";       return true; }
+    if(KZ_NewYorkAM   && m >= 420 && m < 600) { name = "NY AM KZ";        return true; }
+    if(KZ_LondonClose && m >= 600 && m < 720) { name = "London Close KZ"; return true; }
+    if(KZ_NewYorkPM   && m >= 810 && m < 960) { name = "NY PM KZ";        return true; }
+    name = "Diluar Killzone";
+    return false;
+}
+
+string PDPrefix() {
+    if(PD_Source == PD_SMC1) return SMC1_Prefix;
+    if(PD_Source == PD_SMC3) return SMC3_Prefix;
+    return SMC2_Prefix;
+}
+
+// ICT premium/discount of the selected SMC dealing range (its Fibo 50% = equilibrium).
+// Returns false only when price is on the wrong side; a missing Fibo never blocks.
+bool PDAllows(int dir, double price, string &text) {
+    double eq = GetFibo50Price(PDPrefix(), dir);
+    if(eq <= 0) { text = "PD: n/a"; return true; }
+    if(dir == 1) {
+        if(price <= eq) { text = "Discount"; return true; }
+        text = "Premium (tunggu Discount)"; return false;
+    }
+    if(price >= eq) { text = "Premium"; return true; }
+    text = "Discount (tunggu Premium)"; return false;
 }
 
 bool IsAnalysisDue() {
@@ -599,10 +668,30 @@ void RunAnalysis() {
     bool spreadTooHigh = (MaxSpreadPips > 0 && (Ask - Bid) / pip > MaxSpreadPips);
     if(dailyLossHit)  trendText += " (STOP RUGI HARIAN)";
     if(spreadTooHigh) trendText += " (SPREAD TINGGI)";
-    bool tradeBlocked = (dailyLossHit || spreadTooHigh);
+
+    datetime nyTime = TimeCurrent() - ServerOffsetFromNY * 3600;
+    bool fridayStop = (FridayCutoffNY > 0 && TimeDayOfWeek(nyTime) == 5 && TimeHour(nyTime) >= FridayCutoffNY);
+    if(fridayStop) trendText += " (STOP JUMAT)";
+    bool tradeBlocked = (dailyLossHit || spreadTooHigh || fridayStop);
 
     bool finalSignalBuy  = (finalTrend == 1 && validAreaForBuy && !isBuyLimitReached);
     bool finalSignalSell = (finalTrend == -1 && validAreaForSell && !isSellLimitReached);
+
+    // --- ICT strategy filters: shape the signal (MANUAL clicks stay free) ---
+    string ictText = "";
+    bool ictOk = true;
+    if(UseKillzone) {
+        string kzName = "";
+        bool inKZ = InKillzone(nyTime, kzName);
+        ictText = kzName;
+        if(!inKZ) { finalSignalBuy = false; finalSignalSell = false; ictOk = false; }
+    }
+    if(UsePremiumDiscount && finalTrend != 0) {
+        string pdText = "";
+        bool pdOk = PDAllows(finalTrend, price, pdText);
+        ictText += (ictText == "" ? "" : " | ") + pdText;
+        if(!pdOk) { finalSignalBuy = false; finalSignalSell = false; ictOk = false; }
+    }
 
     // ====================================================================
     // TAHAP 5: FILTER AWESOME OSCILLATOR
@@ -623,7 +712,7 @@ void RunAnalysis() {
 
     bool canBuyUI  = !tradeBlocked && !isBuyLimitReached  && (TradingMode == MODE_MANUAL || finalSignalBuy);
     bool canSellUI = !tradeBlocked && !isSellLimitReached && (TradingMode == MODE_MANUAL || finalSignalSell);
-    UpdatePanel(bullPercent, bearPercent, trendText, smcFilterText, list, canBuyUI, canSellUI, trendList, smcMatrixActive, finalTrend);
+    UpdatePanel(bullPercent, bearPercent, trendText, smcFilterText, ictText, ictOk, list, canBuyUI, canSellUI, trendList, smcMatrixActive, finalTrend);
 
     static bool buyAlertLock = false;
     static bool sellAlertLock = false;
@@ -1569,7 +1658,7 @@ int SetLine(int line, string text, color c) {
     return line + 1;
 }
 
-void UpdatePanel(double bullPct, double bearPct, string trendText, string smcText, EntryInfo &list[],
+void UpdatePanel(double bullPct, double bearPct, string trendText, string smcText, string ictText, bool ictOk, EntryInfo &list[],
                  bool canBuy, bool canSell, int &trendList[], bool smcActive, int finalTrend) {
     string separator = "========================================";
     double maxPct = MathMax(bullPct, bearPct);
@@ -1614,6 +1703,11 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
         }
 
         if(activeTrendCount == 0) line = SetLine(line, "- Semua Alat OFF", g_ColNeutral);
+        line = SetLine(line, separator, g_ColText);
+    }
+
+    if(ictText != "") {
+        line = SetLine(line, "[ICT] " + ictText, ictOk ? g_ColBuy : g_ColWarn);
         line = SetLine(line, separator, g_ColText);
     }
 
