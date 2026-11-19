@@ -81,6 +81,7 @@ take precedence.
 | `MaxSpreadPips` (`0` = off) | Blocks new entries while the spread is above this value. |
 | `MaxDailyLossPct` (`0` = off) | Blocks new entries for the day once closed + floating P/L of managed orders reaches `-X%` of the day's starting balance. |
 | `AutoPanelColors` (`true`) | Picks panel text/status colours from the chart background (dark text on light charts, light text on dark charts) so the dashboard stays readable. Set `false` to use `PanelTextColor` / `HighlightColor`. |
+| `HideOneClickPanel` (`true`) | Hides the built-in MT4 One Click Trading panel so only the EA BUY/SELL buttons are shown; it is restored when the EA is removed. |
 | `AnalysisIntervalMs` (`250`) | Minimum time between signal analyses; `0` = every tick. Strategy Tester always runs every tick. |
 
 ## Notes

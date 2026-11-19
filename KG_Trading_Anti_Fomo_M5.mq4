@@ -98,6 +98,7 @@ input bool     ShowTrendDetails = true;    // Tampilkan Detail Status Alat Ukur 
 input color    PanelTextColor   = clrBlack;      // Warna Teks Panel (dipakai jika Auto OFF)
 input color    HighlightColor   = clrMediumBlue; // Warna Judul Panel (dipakai jika Auto OFF)
 input bool     AutoPanelColors  = true;          // Warna Panel Otomatis Sesuai Background Chart
+input bool     HideOneClickPanel = true;         // Sembunyikan Panel One Click Trading Bawaan MT4
 
 input string   Main_Trend = "====== ALAT UKUR TREND UTAMA ======";
 input bool     UseTrend_VAPOC   = true;    // Aktifkan Trend VA/POC
@@ -229,6 +230,7 @@ double   g_DayClosedPL = 0.0;
 
 // --- Panel palette (chosen for contrast against the chart background) ---
 bool     g_LightChart = false;
+bool     g_OneClickWasShown = false;   // restored on removal
 color    g_ColText, g_ColHighlight, g_ColBuy, g_ColSell, g_ColNeutral, g_ColWarn, g_ColBarBG;
 
 //--- Parameter Visual Tombol
@@ -262,6 +264,12 @@ int OnInit() {
     ArrayResize(g_TrackedColors, 0);
     ArrayResize(g_TrackedChangeTime, 0);
 
+    if(HideOneClickPanel) {
+        // Only record "shown" so a re-init (TF/parameter change) never overwrites it with false.
+        if(ChartGetInteger(0, CHART_SHOW_ONE_CLICK)) g_OneClickWasShown = true;
+        ChartSetInteger(0, CHART_SHOW_ONE_CLICK, false);
+    }
+
     InitPanelColors();
     CreatePanel();
     return(INIT_SUCCEEDED);
@@ -272,6 +280,9 @@ void OnDeinit(const int reason) {
     for(int i = 0; i < UI_LINES; i++) ObjectDelete(0, "UI_Line" + IntegerToString(i));
     ObjectDelete(0, "ProgBar_BG");
     ObjectDelete(0, "ProgBar_FG");
+    // Give the MT4 One Click panel back only when the EA is really removed (not on TF/param change).
+    if(HideOneClickPanel && g_OneClickWasShown && (reason == REASON_REMOVE || reason == REASON_CHARTCLOSE))
+        ChartSetInteger(0, CHART_SHOW_ONE_CLICK, true);
     ChartRedraw();
 }
 
