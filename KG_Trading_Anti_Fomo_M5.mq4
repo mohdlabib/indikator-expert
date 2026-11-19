@@ -112,6 +112,11 @@ input bool     UseHiddenSLTP    = false;              // Sembunyikan SL, TP, Tra
 
 input string   Set_Display      = "====== PENGATURAN TAMPILAN ======";
 input int      PanelXDistance   = 1550;    // Posisi Panel Sumbu X (Geser Kiri/Kanan)
+input int      PanelYDistance   = 20;      // Posisi Panel Sumbu Y (Geser Atas/Bawah)
+input int      PanelLineHeight  = 16;      // Jarak Antar Baris Panel (px)
+input int      PanelFontSize    = 9;       // Ukuran Huruf Panel
+input int      MaxAreaLines     = 4;       // Maks. Baris Area Entry di Panel
+input bool     ShowSourceLine   = false;   // Tampilkan Baris Sumber Data [SRC]
 input bool     CleanTradeLines  = true;    // Bersihkan Garis & Panah Histori Trade
 input bool     ShowTrendDetails = true;    // Tampilkan Detail Status Alat Ukur Trend
 input color    PanelTextColor   = clrBlack;      // Warna Teks Panel (dipakai jika Auto OFF)
@@ -334,9 +339,10 @@ color    g_ColText, g_ColHighlight, g_ColBuy, g_ColSell, g_ColNeutral, g_ColWarn
 
 //--- Parameter Visual Tombol
 const int baseXSize  = 120;
-const int baseYSize  = 35;
+const int baseYSize  = 30;
 const int pressXSize = 116;
-const int pressYSize = 31;
+const int pressYSize = 26;
+const int closeYSize = 24;
 
 struct EntryInfo {
     string Name;
@@ -372,7 +378,7 @@ int OnInit() {
        SMC_SwingLen < 1 || SMC_SwingLen > 10 || SMC_Lookback < 50 || MP_BinPips < 1 || MP_LookbackHours < 1 ||
        MP_ValueAreaPct <= 0 || MP_ValueAreaPct > 100 ||
        (UseATRStops && (ATR_Period < 1 || ATR_SL_Mult <= 0 || TP_RR < 0 || ATR_MinSLPips < 0 || ATR_MaxSLPips < ATR_MinSLPips)) ||
-       MaxHoldMinutes < 0) {
+       MaxHoldMinutes < 0 || PanelLineHeight < 8 || PanelFontSize < 6 || PanelFontSize > 20 || MaxAreaLines < 0) {
         Print("Parameter konfirmasi / built-in tidak valid.");
         return(INIT_PARAMETERS_INCORRECT);
     }
@@ -813,7 +819,7 @@ void RunAnalysis() {
     bool dailyLossHit = IsDailyLossHit();
     bool spreadTooHigh = (MaxSpreadPips > 0 && (Ask - Bid) / pip > MaxSpreadPips);
     if(dailyLossHit)  trendText += " (STOP RUGI HARIAN)";
-    if(spreadTooHigh) trendText += " (SPREAD TINGGI)";
+    if(spreadTooHigh) trendText += " (SPREAD " + DoubleToStr(Ask - Bid, Digits) + ")";
 
     datetime nyTime = TimeCurrent() - ServerOffsetFromNY * 3600;
     bool fridayStop = (FridayCutoffNY > 0 && TimeDayOfWeek(nyTime) == 5 && TimeHour(nyTime) >= FridayCutoffNY);
@@ -2111,8 +2117,14 @@ void InitPanelColors() {
     g_ColBarBG     = g_LightChart ? clrGainsboro : clrDarkSlateGray;
 }
 
+// Layout (top to bottom, fixed): trend bar + summary, BUY/SELL, CLOSE buttons, then text lines.
+// Buttons never move, so the panel stays compact and does not slide over other chart buttons.
+int PanelTextTop() {
+    return PanelYDistance + 28 + baseYSize + 6 + (ShowCloseButtons ? closeYSize + 4 : 0);
+}
+
 void CreatePanel() {
-    int startY = 20;
+    int startY = PanelYDistance;
     int startX = PanelXDistance;
 
     ObjectCreate(0, "ProgBar_BG", OBJ_RECTANGLE_LABEL, 0, 0, 0);
@@ -2134,6 +2146,7 @@ void CreatePanel() {
     ObjectSetInteger(0, "ProgBar_FG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
     ObjectSetInteger(0, "ProgBar_FG", OBJPROP_COLOR, clrNONE);
 
+    int textTop = PanelTextTop();
     for(int i = 0; i < UI_LINES; i++) {
         string name = "UI_Line" + IntegerToString(i);
         ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
@@ -2143,32 +2156,35 @@ void CreatePanel() {
             ObjectSetInteger(0, name, OBJPROP_YDISTANCE, startY + 5);
         } else {
             ObjectSetInteger(0, name, OBJPROP_XDISTANCE, startX);
-            ObjectSetInteger(0, name, OBJPROP_YDISTANCE, startY + (i * 20));
+            ObjectSetInteger(0, name, OBJPROP_YDISTANCE, textTop + (i - 1) * PanelLineHeight);
         }
         ObjectSetInteger(0, name, OBJPROP_COLOR, g_ColText);
         ObjectSetString(0, name, OBJPROP_FONT, "Consolas");
-        ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
+        ObjectSetInteger(0, name, OBJPROP_FONTSIZE, PanelFontSize);
         ObjectSetString(0, name, OBJPROP_TEXT, " ");
     }
 
-    CreateButton("Btn_Sell", startX, startY + (8 * 20) + 10, "SELL", clrCrimson);
-    CreateButton("Btn_Buy", startX + baseXSize + 10, startY + (8 * 20) + 10, "BUY", clrDodgerBlue);
+    int btnY = startY + 28;
+    CreateButton("Btn_Sell", startX, btnY, baseYSize, "SELL", clrCrimson);
+    CreateButton("Btn_Buy", startX + baseXSize + 10, btnY, baseYSize, "BUY", clrDodgerBlue);
     if(ShowCloseButtons) {
-        CreateButton("Btn_CloseAll", startX, startY + (8 * 20) + 10 + baseYSize + 6, "CLOSE ALL", clrDimGray);
-        CreateButton("Btn_CloseProfit", startX + baseXSize + 10, startY + (8 * 20) + 10 + baseYSize + 6, "CLOSE PROFIT", clrSeaGreen);
+        int closeY = btnY + baseYSize + 4;
+        CreateButton("Btn_CloseAll", startX, closeY, closeYSize, "CLOSE ALL", clrDimGray);
+        CreateButton("Btn_CloseProfit", startX + baseXSize + 10, closeY, closeYSize, "CLOSE PROFIT", clrSeaGreen);
     }
 }
 
-void CreateButton(string name, int x, int y, string text, color bg) {
+void CreateButton(string name, int x, int y, int height, string text, color bg) {
     ObjectCreate(0, name, OBJ_BUTTON, 0, 0, 0);
     ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
     ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
     ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
     ObjectSetInteger(0, name, OBJPROP_XSIZE, baseXSize);
-    ObjectSetInteger(0, name, OBJPROP_YSIZE, baseYSize);
+    ObjectSetInteger(0, name, OBJPROP_YSIZE, height);
     ObjectSetString(0, name, OBJPROP_TEXT, text);
     ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bg);
     ObjectSetInteger(0, name, OBJPROP_COLOR, clrWhite);
+    ObjectSetInteger(0, name, OBJPROP_FONTSIZE, PanelFontSize);
 }
 
 // Writes one panel line and returns the next line index (silently ignores overflow).
@@ -2196,7 +2212,7 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
     ObjectSetInteger(0, "ProgBar_FG", OBJPROP_BGCOLOR, trendColor);
 
     SetLine(0, trendText, trendColor);
-    int line = SetLine(1, separator, g_ColText);
+    int line = 1;
 
     if(ShowTrendDetails) {
         line = SetLine(line, "[+] STATUS TREND:", g_ColHighlight);
@@ -2229,32 +2245,27 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
     }
 
     if(ictText != "") line = SetLine(line, "[ICT] " + ictText, ictOk ? g_ColBuy : g_ColWarn);
-    line = SetLine(line, "[SRC] " + srcText, g_ColNeutral);
-    line = SetLine(line, separator, g_ColText);
+    if(ShowSourceLine) line = SetLine(line, "[SRC] " + srcText, g_ColNeutral);
 
     line = SetLine(line, ">> ACTIVE ENTRY AREAS:", g_ColHighlight);
 
+    // List is sorted by distance: show the nearest areas, summarise the rest.
     int activeCount = 0;
     if(finalTrend != 0) {
         for(int i = 0; i < AREA_COUNT; i++) {
             if(!IsInZone(list[i]) || list[i].Type != finalTrend) continue;
+            activeCount++;
+            if(activeCount > MaxAreaLines) continue;
             string dir = (list[i].Type == 1) ? "(Support)" : "(Resistance)";
             line = SetLine(line, "- " + list[i].Name + " : In Zone " + dir, (list[i].Type == 1) ? g_ColBuy : g_ColSell);
-            activeCount++;
         }
     }
     if(activeCount == 0) line = SetLine(line, "- No Entry Area", g_ColNeutral);
-    line = SetLine(line, separator, g_ColText);
+    else if(activeCount > MaxAreaLines)
+        line = SetLine(line, "- ... +" + IntegerToString(activeCount - MaxAreaLines) + " area lain", g_ColNeutral);
 
     for(int i = line; i < UI_LINES; i++) ObjectSetString(0, "UI_Line" + IntegerToString(i), OBJPROP_TEXT, " ");
 
-    int btnY = 20 + (line * 20) + 10;
-    ObjectSetInteger(0, "Btn_Sell", OBJPROP_YDISTANCE, btnY);
-    ObjectSetInteger(0, "Btn_Buy", OBJPROP_YDISTANCE, btnY);
-    if(ShowCloseButtons) {
-        ObjectSetInteger(0, "Btn_CloseAll", OBJPROP_YDISTANCE, btnY + baseYSize + 6);
-        ObjectSetInteger(0, "Btn_CloseProfit", OBJPROP_YDISTANCE, btnY + baseYSize + 6);
-    }
     ObjectSetInteger(0, "Btn_Buy", OBJPROP_BGCOLOR, canBuy ? clrDodgerBlue : clrGray);
     ObjectSetInteger(0, "Btn_Sell", OBJPROP_BGCOLOR, canSell ? clrCrimson : clrGray);
     ChartRedraw();
@@ -2282,7 +2293,7 @@ void PressButton(string name, int baseX, int type) {
     ObjectSetInteger(0, name, OBJPROP_YDISTANCE, currentY);
     ObjectSetInteger(0, name, OBJPROP_XSIZE, baseXSize);
     ObjectSetInteger(0, name, OBJPROP_YSIZE, baseYSize);
-    ObjectSetInteger(0, name, OBJPROP_STATE, false);
+    ObjectSetInteger(0, name, OBJPROP_STATE, false);   // restored size matches CreatePanel()
     ChartRedraw();
 }
 
