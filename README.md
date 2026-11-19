@@ -169,6 +169,31 @@ A direction is valid when its weighted score is at least `MinConfirmPct` (70%) *
 the same way. Otherwise the panel shows `NETRAL (..%, BIAS SMC BEDA)`. `TREND_STRICT` and
 `TREND_LOOSE` remain available and also use the weights.
 
+## Semi-automatic scalping profile
+
+Preset: `presets/XAUUSD_Scalping_Semi_M5.set` (attach the EA to an XAUUSD **M5** chart and load it
+from the Inputs tab). In `MODE_SEMI` the EA validates the setup and alerts; the trader clicks
+BUY/SELL (the button is grey while there is no valid signal), and the EA manages the trade.
+
+New inputs used by the profile:
+
+| Input | Preset | Purpose |
+| --- | --- | --- |
+| `UseATRStops` | true | SL = ATR(`ATR_Period`, `ATR_TF`, last closed bar) x `ATR_SL_Mult`, clamped to `ATR_MinSLPips`..`ATR_MaxSLPips`; TP = SL x `TP_RR`. Lot size uses the same SL distance. |
+| `MaxHoldMinutes` | 45 | Time stop: closes managed positions older than N minutes. |
+| `ShowCloseButtons` | true | Panel buttons `CLOSE ALL` and `CLOSE PROFIT` (managed positions of this symbol). |
+| `PushOnSignal` | true | Sends a MetaQuotes push notification on each new valid signal (requires MetaQuotes ID in Tools > Options > Notifications). |
+
+Preset summary: SMC built-in on M1 (entry) / M15 (structure, premium-discount range) / H1 (bias),
+swing length 2, FVG >= $0.20; Market Profile of the last 8 hours on M1 with $0.20 levels;
+SL 1.5 x ATR(14, M5) between $2.50 and $8, TP 1.5R; breakeven at 60% of TP (+$0.30); trailing
+from $5 with $3 distance; one position at a time, no hedging; 0.5% risk; max spread $0.30;
+2% daily loss stop; London and New York AM killzones; no new trades on Friday after 11:00 NY.
+`PrimaryArea` is `PRIMARY_NONE` because the OB Scout area only exists with the KG indicator.
+
+`.set` files written by hand may encode booleans differently from the terminal; after loading,
+check the Inputs tab and correct any value that did not load.
+
 ## Notes
 
 - `RiskPercent` cannot go below the broker's minimum lot: when the calculated lot is smaller,

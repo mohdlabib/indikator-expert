@@ -253,6 +253,18 @@ input int      MP_BinPips       = 50;      // Ukuran Level Profil (Pips, 50 = $0
 input double   MP_ValueAreaPct  = 70.0;    // Value Area (%)
 input bool     DrawBuiltIn      = true;    // Gambar Level Built-in di Chart
 
+input string   Set_Scalping     = "====== SCALPING & SEMI-OTOMATIS ======";
+input bool     UseATRStops      = false;   // SL/TP Dinamis Berdasarkan ATR (Scalping)
+input ENUM_TIMEFRAMES ATR_TF    = PERIOD_M5; // Timeframe ATR
+input int      ATR_Period       = 14;      // Periode ATR
+input double   ATR_SL_Mult      = 1.5;     // SL = ATR x Pengali
+input double   TP_RR            = 1.5;     // TP = SL x Risk:Reward (Mode ATR)
+input int      ATR_MinSLPips    = 250;     // SL Minimal Mode ATR (Pips, 250 = $2.50)
+input int      ATR_MaxSLPips    = 1000;    // SL Maksimal Mode ATR (Pips, 1000 = $10)
+input int      MaxHoldMinutes   = 0;       // Tutup Posisi Setelah N Menit (0 = Off)
+input bool     ShowCloseButtons = true;    // Tampilkan Tombol CLOSE ALL & CLOSE PROFIT
+input bool     PushOnSignal     = false;   // Kirim Notifikasi ke HP saat Sinyal Valid
+
 input string   Set_Performance  = "====== PERFORMA ======";
 input int      AnalysisIntervalMs = 250;  // Interval Analisa Sinyal (ms, 0 = Setiap Tick)
 
@@ -357,7 +369,9 @@ int OnInit() {
 
     if(MinConfirmPct <= 0 || MinConfirmPct > 100 || W_SMC < 0 || W_VAPOC < 0 || W_VWAP < 0 || W_BBMA < 0 || W_MA < 0 ||
        SMC_SwingLen < 1 || SMC_SwingLen > 10 || SMC_Lookback < 50 || MP_BinPips < 1 || MP_LookbackHours < 1 ||
-       MP_ValueAreaPct <= 0 || MP_ValueAreaPct > 100) {
+       MP_ValueAreaPct <= 0 || MP_ValueAreaPct > 100 ||
+       (UseATRStops && (ATR_Period < 1 || ATR_SL_Mult <= 0 || TP_RR < 0 || ATR_MinSLPips < 0 || ATR_MaxSLPips < ATR_MinSLPips)) ||
+       MaxHoldMinutes < 0) {
         Print("Parameter konfirmasi / built-in tidak valid.");
         return(INIT_PARAMETERS_INCORRECT);
     }
@@ -616,6 +630,7 @@ void OnTick() {
     ApplyDefaultProtection();
     SmartBEPLogic();
     TrailingStopLogic();
+    TimeStopLogic();
 
     // --- Signal analysis is throttled (heavy chart-object scanning) ---
     if(IsAnalysisDue()) RunAnalysis();
@@ -850,6 +865,7 @@ void RunAnalysis() {
         if(!buyAlertLock && !IsTesting()) {
             Alert(Symbol(), ": SIGNAL BUY VALID! Trend Bullish & Area Confluence Terpenuhi!");
             PlaySound("alert.wav");
+            if(PushOnSignal) SendNotification(Symbol() + " SIGNAL BUY VALID @ " + DoubleToStr(Ask, Digits));
         }
         buyAlertLock = true;
     } else buyAlertLock = false;
@@ -858,6 +874,7 @@ void RunAnalysis() {
         if(!sellAlertLock && !IsTesting()) {
             Alert(Symbol(), ": SIGNAL SELL VALID! Trend Bearish & Area Confluence Terpenuhi!");
             PlaySound("alert.wav");
+            if(PushOnSignal) SendNotification(Symbol() + " SIGNAL SELL VALID @ " + DoubleToStr(Bid, Digits));
         }
         sellAlertLock = true;
     } else sellAlertLock = false;
@@ -1767,7 +1784,24 @@ int LotDigits(double step) {
     return (int)MathMax(0, MathCeil(-MathLog10(step) - 1e-9));
 }
 
-double CalcLotSize() {
+// Stop-loss distance in price. ATR mode: ATR(closed bar) x multiplier, clamped to [min, max].
+double StopDistance() {
+    double pip = GetPipValue();
+    if(UseATRStops) {
+        int tf = ATR_TF;
+        if(tf == PERIOD_CURRENT) tf = Period();
+        double atr = iATR(Symbol(), tf, ATR_Period, 1);
+        if(atr > 0) return MathMin(MathMax(atr * ATR_SL_Mult, ATR_MinSLPips * pip), ATR_MaxSLPips * pip);
+    }
+    return StopLossPips * pip;   // fixed mode, or ATR data not ready yet
+}
+
+double TakeProfitDistance(double slDist) {
+    if(UseATRStops && slDist > 0) return slDist * TP_RR;
+    return TakeProfitPips * GetPipValue();
+}
+
+double CalcLotSize(double slDist) {
     double minLot = MarketInfo(Symbol(), MODE_MINLOT);
     double maxLot = MarketInfo(Symbol(), MODE_MAXLOT);
     double step   = MarketInfo(Symbol(), MODE_LOTSTEP);
@@ -1776,13 +1810,13 @@ double CalcLotSize() {
     double lot;
     if(FixedLotSize > 0) {
         lot = FixedLotSize;
-    } else if(StopLossPips <= 0) {
+    } else if(slDist <= 0) {
         lot = minLot;   // Risk % undefined without a stop loss
     } else {
         double tickValue = MarketInfo(Symbol(), MODE_TICKVALUE);
         double tickSize  = MarketInfo(Symbol(), MODE_TICKSIZE);
         if(tickValue <= 0 || tickSize <= 0) return 0.0;
-        double lossPerLot = (StopLossPips * GetPipValue()) / tickSize * tickValue;
+        double lossPerLot = slDist / tickSize * tickValue;
         if(lossPerLot <= 0) return 0.0;
         lot = AccountBalance() * (RiskPercent / 100.0) / lossPerLot;
     }
@@ -1798,7 +1832,9 @@ bool OpenMarketOrder(int type) {
     if(!IsTradeAllowed()) { LogThrottled("Trading tidak diizinkan (AutoTrading OFF / context sibuk)."); return false; }
     RefreshRates();
 
-    double lot = CalcLotSize();
+    double slDist = StopDistance();            // same distance for lot sizing and the SL itself
+    double tpDist = TakeProfitDistance(slDist);
+    double lot = CalcLotSize(slDist);
     if(lot <= 0) { LogThrottled("Lot tidak valid, entry dibatalkan."); return false; }
 
     ResetLastError();
@@ -1817,11 +1853,10 @@ bool OpenMarketOrder(int type) {
     if(!OrderSelect(ticket, SELECT_BY_TICKET)) return true;
 
     // SL/TP from the actual fill price (not the requested price).
-    double pip = GetPipValue();
     double openPrice = OrderOpenPrice();
     int dir = (type == OP_BUY) ? 1 : -1;
-    double sl = (StopLossPips > 0)   ? openPrice - dir * StopLossPips * pip   : 0;
-    double tp = (TakeProfitPips > 0) ? openPrice + dir * TakeProfitPips * pip : 0;
+    double sl = (slDist > 0) ? openPrice - dir * slDist : 0;
+    double tp = (tpDist > 0) ? openPrice + dir * tpDist : 0;
 
     if(UseHiddenSLTP) {
         if(sl > 0) SetVirtualSL(ticket, sl);
@@ -1844,26 +1879,51 @@ bool OpenMarketOrder(int type) {
 
 // Gives default SL/TP to managed orders that have none (EA retry + manual orders).
 void ApplyDefaultProtection() {
-    if(StopLossPips <= 0 && TakeProfitPips <= 0) return;
-    double pip = GetPipValue();
+    if(!UseATRStops && StopLossPips <= 0 && TakeProfitPips <= 0) return;
     for(int i = OrdersTotal() - 1; i >= 0; i--) {
         if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES) || !IsManagedOrder(ManageManualTrades)) continue;
         int ticket = OrderTicket();
         int type = OrderType();
-        double openPrice = OrderOpenPrice();
-        int dir = IsBuyType(type) ? 1 : -1;
-        double sl = (StopLossPips > 0)   ? openPrice - dir * StopLossPips * pip   : 0;
-        double tp = (TakeProfitPips > 0) ? openPrice + dir * TakeProfitPips * pip : 0;
 
+        // Only orders without protection need work (checked before the ATR lookup).
         if(UseHiddenSLTP) {
             if(type != OP_BUY && type != OP_SELL) continue;
             if(GetVirtualSL(ticket) > 0 || GetVirtualTP(ticket) > 0) continue;
+        } else if(OrderStopLoss() != 0 || OrderTakeProfit() != 0) continue;
+
+        double openPrice = OrderOpenPrice();
+        int dir = IsBuyType(type) ? 1 : -1;
+        double slDist = StopDistance();
+        double tpDist = TakeProfitDistance(slDist);
+        double sl = (slDist > 0) ? openPrice - dir * slDist : 0;
+        double tp = (tpDist > 0) ? openPrice + dir * tpDist : 0;
+
+        if(UseHiddenSLTP) {
             if(sl > 0) SetVirtualSL(ticket, sl);
             if(tp > 0) SetVirtualTP(ticket, tp);
         } else {
-            if(OrderStopLoss() != 0 || OrderTakeProfit() != 0) continue;
             ModifyStops(ticket, sl, tp);
         }
+    }
+}
+
+// Scalping time stop: close managed positions held longer than MaxHoldMinutes.
+void TimeStopLogic() {
+    if(MaxHoldMinutes <= 0) return;
+    for(int i = OrdersTotal() - 1; i >= 0; i--) {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES) || !IsManagedOrder(ManageManualTrades)) continue;
+        if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+        if(TimeCurrent() - OrderOpenTime() >= MaxHoldMinutes * 60) CloseOrder(OrderTicket(), "Time Stop");
+    }
+}
+
+// Panel buttons: close every managed position, or only the ones in profit.
+void CloseManagedPositions(bool onlyProfit) {
+    for(int i = OrdersTotal() - 1; i >= 0; i--) {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES) || !IsManagedOrder(ManageManualTrades)) continue;
+        if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+        if(onlyProfit && OrderProfit() + OrderSwap() + OrderCommission() <= 0) continue;
+        CloseOrder(OrderTicket(), onlyProfit ? "Close Profit" : "Close All");
     }
 }
 
@@ -1895,7 +1955,7 @@ void SmartBEPLogic() {
         double curTP = UseHiddenSLTP ? GetVirtualTP(ticket) : brokerTP;
 
         // Trigger relative to this order's real TP distance (falls back to the input).
-        double tpDist = (curTP > 0) ? MathAbs(curTP - openPrice) : TakeProfitPips * pip;
+        double tpDist = (curTP > 0) ? MathAbs(curTP - openPrice) : TakeProfitDistance(StopDistance());
         if(tpDist <= 0) continue;
         double trigger = tpDist * BEPTriggerPct / 100.0;
 
@@ -2092,6 +2152,10 @@ void CreatePanel() {
 
     CreateButton("Btn_Sell", startX, startY + (8 * 20) + 10, "SELL", clrCrimson);
     CreateButton("Btn_Buy", startX + baseXSize + 10, startY + (8 * 20) + 10, "BUY", clrDodgerBlue);
+    if(ShowCloseButtons) {
+        CreateButton("Btn_CloseAll", startX, startY + (8 * 20) + 10 + baseYSize + 6, "CLOSE ALL", clrDimGray);
+        CreateButton("Btn_CloseProfit", startX + baseXSize + 10, startY + (8 * 20) + 10 + baseYSize + 6, "CLOSE PROFIT", clrSeaGreen);
+    }
 }
 
 void CreateButton(string name, int x, int y, string text, color bg) {
@@ -2186,6 +2250,10 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
     int btnY = 20 + (line * 20) + 10;
     ObjectSetInteger(0, "Btn_Sell", OBJPROP_YDISTANCE, btnY);
     ObjectSetInteger(0, "Btn_Buy", OBJPROP_YDISTANCE, btnY);
+    if(ShowCloseButtons) {
+        ObjectSetInteger(0, "Btn_CloseAll", OBJPROP_YDISTANCE, btnY + baseYSize + 6);
+        ObjectSetInteger(0, "Btn_CloseProfit", OBJPROP_YDISTANCE, btnY + baseYSize + 6);
+    }
     ObjectSetInteger(0, "Btn_Buy", OBJPROP_BGCOLOR, canBuy ? clrDodgerBlue : clrGray);
     ObjectSetInteger(0, "Btn_Sell", OBJPROP_BGCOLOR, canSell ? clrCrimson : clrGray);
     ChartRedraw();
@@ -2222,5 +2290,11 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
     if(id != CHARTEVENT_OBJECT_CLICK) return;
     if(sparam == "Btn_Buy")  PressButton("Btn_Buy", PanelXDistance + baseXSize + 10, OP_BUY);
     if(sparam == "Btn_Sell") PressButton("Btn_Sell", PanelXDistance, OP_SELL);
+    if(sparam == "Btn_CloseAll" || sparam == "Btn_CloseProfit") {
+        CloseManagedPositions(sparam == "Btn_CloseProfit");
+        PlaySound("ok.wav");
+        ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
+        ChartRedraw();
+    }
 }
 //+------------------------------------------------------------------+
