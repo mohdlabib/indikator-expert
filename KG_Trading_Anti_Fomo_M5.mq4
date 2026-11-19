@@ -9,9 +9,9 @@
 #property version   "10.0"
 #property strict
 
-#define AREA_COUNT   18
+#define AREA_COUNT   21
 #define TREND_SLOTS  10
-#define UI_LINES     35
+#define UI_LINES     40
 #define NO_ZONE      99999.0
 
 //--- Definisi Pilihan Mode
@@ -31,7 +31,8 @@ enum ENUM_TREND_LOGIC {
 // --- Definisi Pilihan Syarat Validitas Trend ---
 enum ENUM_TREND_VALIDITY {
     TREND_STRICT,  // Ketat (100% Searah)
-    TREND_LOOSE    // Longgar (Di Atas 50% Searah)
+    TREND_LOOSE,   // Longgar (Di Atas 50% Searah)
+    TREND_WEIGHTED // Skor Berbobot >= Skor Minimal (Rekomendasi)
 };
 
 // --- Definisi Pilihan Validasi Area Entry ---
@@ -61,7 +62,17 @@ enum ENUM_PRIMARY_AREA {
     PRIMARY_BBMA1,        // Wajib BBMA 1
     PRIMARY_BBMA2,        // Wajib BBMA 2
     PRIMARY_KGSUPDEM,     // Wajib KG SupDem
-    PRIMARY_KGSUPDEM_FIBO // Wajib KG SupDem Fibo
+    PRIMARY_KGSUPDEM_FIBO,// Wajib KG SupDem Fibo
+    PRIMARY_FVG1,         // Wajib FVG 1 (Built-in)
+    PRIMARY_FVG2,         // Wajib FVG 2 (Built-in)
+    PRIMARY_FVG3          // Wajib FVG 3 (Built-in)
+};
+
+// --- Sumber Data SMC / Market Profile ---
+enum ENUM_DATA_SOURCE {
+    SRC_AUTO,       // Otomatis (Indikator KG jika ada, jika tidak Built-in)
+    SRC_INDICATOR,  // Indikator KG Saja
+    SRC_BUILTIN     // Built-in EA Saja
 };
 
 // --- Sumber Dealing Range untuk Premium/Discount (ICT) ---
@@ -116,12 +127,12 @@ input bool     Use_SMC_Matrix   = true;    // [ON] Mode Matriks SMC (Satu Kesatu
 input bool     Use_BBMA_Filter  = false;   // Filter BB Mode Matriks SMC (true = Aktif, false = Non Aktif)
 
 input string   Optional_Trend = "====== ALAT UKUR TREND OPTIONAL ======";
-input bool     UseTrend_VWAP1   = false;   // Aktifkan Trend VWAP 1 (Harian)
-input bool     UseTrend_VWAP2   = false;   // Aktifkan Trend VWAP 2 (2-Harian)
-input bool     UseTrend_BBMA1   = false;   // Aktifkan Trend BBMA 1 (Kecil)
-input bool     UseTrend_BBMA2   = false;   // Aktifkan Trend BBMA 2 (Besar)
-input bool     UseTrend_EMA     = false;   // Aktifkan Trend MA Crossover 1 (Kecil)
-input bool     UseTrend_EMA2    = false;   // Aktifkan Trend MA Crossover 2 (Besar)
+input bool     UseTrend_VWAP1   = true;    // Aktifkan Trend VWAP 1 (Harian)
+input bool     UseTrend_VWAP2   = true;    // Aktifkan Trend VWAP 2 (2-Harian)
+input bool     UseTrend_BBMA1   = true;    // Aktifkan Trend BBMA 1 (Kecil)
+input bool     UseTrend_BBMA2   = true;    // Aktifkan Trend BBMA 2 (Besar)
+input bool     UseTrend_EMA     = true;    // Aktifkan Trend MA Crossover 1 (Kecil)
+input bool     UseTrend_EMA2    = true;    // Aktifkan Trend MA Crossover 2 (Besar)
 
 input string   Trend_Settings   = "====== PENGATURAN TREND & OBJEK ======";
 input ENUM_MA_METHOD MA_Mode  = MODE_SMA; //Mode MA  (Kecil/Besar)
@@ -140,7 +151,7 @@ input string   KGFibo_Prefix    = "Fibo_1_";        // Keyword Nama Indikator KG
 input bool     Use_VWAP1_BBSD2  = true;             // Aktifkan Logika BB SD2 (Khusus VWAP Harian)
 input bool     UseAdvancedCalc  = true;             // Aktifkan Logika Sideways KGBBMA
 input ENUM_TREND_LOGIC TrendLogicMode = TREND_COLOR_CHANGE;    // Mode Deteksi Tren VA/POC
-input ENUM_TREND_VALIDITY TrendValidityMode = TREND_STRICT;    // Syarat Validitas Tren
+input ENUM_TREND_VALIDITY TrendValidityMode = TREND_WEIGHTED;  // Syarat Validitas Tren
 input bool     UseFallback      = true;                        // Abaikan Area Netral
 
 input string   Set_Entry_Area   = "====== FILTER AREA ENTRY ======";
@@ -164,6 +175,9 @@ input bool     Use_BBMA1_Entry  = true;    // Gunakan Area BBMA 1 (Kecil) untuk 
 input bool     Use_BBMA2_Entry  = true;    // Gunakan Area BBMA 2 (Besar) untuk Entry
 input bool     Use_KGSupDem_Entry = true;      // Gunakan Area KG SupDem untuk Entry
 input bool     Use_KGSupDemFibo_Entry = true;  // Gunakan Area Fibo KG SupDem untuk Entry
+input bool     Use_FVG1_Entry   = true;    // Gunakan Area FVG 1 (Built-in) untuk Entry
+input bool     Use_FVG2_Entry   = true;    // Gunakan Area FVG 2 (Built-in) untuk Entry
+input bool     Use_FVG3_Entry   = true;    // Gunakan Area FVG 3 (Built-in) untuk Entry
 input int      ZoneTolerancePips= 150;         // Batas Toleransi Jarak Garis (Fibo, VWAP, BBMA) (Pips, 100 = $1)
 
 input string   Set_AO_Filter       = "====== KONFIRMASI AWESOME OSCILLATOR ======";
@@ -215,6 +229,30 @@ input bool     UsePremiumDiscount = true;  // ICT: Buy Hanya di Discount, Sell H
 input ENUM_PD_SOURCE PD_Source  = PD_SMC2; // Dealing Range Premium/Discount
 input bool     ICT_OTEOnly      = false;   // Area SMC Fibo Hanya Level OTE (61.8 & 78.6)
 
+input string   Set_Confirm      = "====== KONFIRMASI GABUNGAN (SKOR BERBOBOT) ======";
+input double   MinConfirmPct    = 70.0;    // Skor Minimal (%) Mode Berbobot
+input bool     SMC_BiasMandatory = true;   // Bias SMC Wajib Searah (ICT Top-Down)
+input double   W_SMC            = 3.0;     // Bobot SMC (Struktur)
+input double   W_VAPOC          = 2.0;     // Bobot Market Profile VA/POC (Value)
+input double   W_VWAP           = 1.0;     // Bobot per VWAP (Volume)
+input double   W_BBMA           = 1.0;     // Bobot per BBMA (Keluarga MA)
+input double   W_MA             = 1.0;     // Bobot per MA Cross (Keluarga MA)
+
+input string   Set_BuiltIn      = "====== INDIKATOR BUILT-IN (SMC & MARKET PROFILE) ======";
+input ENUM_DATA_SOURCE SMC_Source = SRC_AUTO;      // Sumber Data SMC
+input ENUM_TIMEFRAMES SMC1_TF   = PERIOD_M5;       // Timeframe SMC 1 (Minor) Built-in
+input ENUM_TIMEFRAMES SMC2_TF   = PERIOD_H1;       // Timeframe SMC 2 (Medium) Built-in
+input ENUM_TIMEFRAMES SMC3_TF   = PERIOD_H4;       // Timeframe SMC 3 (Major) Built-in
+input int      SMC_SwingLen     = 3;       // Panjang Swing (Bar Kiri/Kanan)
+input int      SMC_Lookback     = 300;     // Jumlah Bar Analisa SMC
+input int      MinFVGPips       = 30;      // Ukuran Minimal FVG (Pips, 30 = $0.30)
+input ENUM_DATA_SOURCE MP_Source = SRC_AUTO;       // Sumber Data Market Profile
+input ENUM_TIMEFRAMES MP_Timeframe = PERIOD_M5;    // Timeframe Data Market Profile
+input int      MP_LookbackHours = 24;      // Rentang Profil (Jam Terakhir)
+input int      MP_BinPips       = 50;      // Ukuran Level Profil (Pips, 50 = $0.50)
+input double   MP_ValueAreaPct  = 70.0;    // Value Area (%)
+input bool     DrawBuiltIn      = true;    // Gambar Level Built-in di Chart
+
 input string   Set_Performance  = "====== PERFORMA ======";
 input int      AnalysisIntervalMs = 250;  // Interval Analisa Sinyal (ms, 0 = Setiap Tick)
 
@@ -241,6 +279,33 @@ datetime g_TrackedChangeTime[];
 
 // --- Chart object name cache (one ObjectName() sweep per analysis pass) ---
 string   g_Objs[];
+bool     g_SMCHasObjects[4];   // KG indicator objects found per SMC prefix (SMC1..3, Scout)
+bool     g_MPHasObjects = false;
+
+// --- Built-in SMC state per tier (0 = SMC1, 1 = SMC2, 2 = SMC3) ---
+struct SMCState {
+    datetime barTime;
+    int      trend;
+    double   rangeHigh;
+    double   rangeLow;
+    double   obBullTop;
+    double   obBullBot;
+    datetime obBullTime;
+    double   obBearTop;
+    double   obBearBot;
+    datetime obBearTime;
+    double   fvgBullTop;
+    double   fvgBullBot;
+    datetime fvgBullTime;
+    double   fvgBearTop;
+    double   fvgBearBot;
+    datetime fvgBearTime;
+};
+SMCState g_SMC[3];
+
+// --- Built-in Market Profile state ---
+datetime g_MPBarTime = 0;
+double   g_MPPoc = 0, g_MPVah = 0, g_MPVal = 0, g_MPBin = 0;
 int      g_ObjCount = 0;
 
 // --- Cached daily statistics ---
@@ -290,6 +355,15 @@ int OnInit() {
         return(INIT_PARAMETERS_INCORRECT);
     }
 
+    if(MinConfirmPct <= 0 || MinConfirmPct > 100 || W_SMC < 0 || W_VAPOC < 0 || W_VWAP < 0 || W_BBMA < 0 || W_MA < 0 ||
+       SMC_SwingLen < 1 || SMC_SwingLen > 10 || SMC_Lookback < 50 || MP_BinPips < 1 || MP_LookbackHours < 1 ||
+       MP_ValueAreaPct <= 0 || MP_ValueAreaPct > 100) {
+        Print("Parameter konfirmasi / built-in tidak valid.");
+        return(INIT_PARAMETERS_INCORRECT);
+    }
+    for(int t = 0; t < 3; t++) ResetSMCState(t);   // force recalculation after re-init
+    g_MPBarTime = 0;
+
     ArrayResize(g_TrackedNames, 0);
     ArrayResize(g_TrackedColors, 0);
     ArrayResize(g_TrackedChangeTime, 0);
@@ -307,6 +381,7 @@ int OnInit() {
 
 void OnDeinit(const int reason) {
     ObjectsDeleteAll(0, "Btn_");
+    ObjectsDeleteAll(0, "KGEA_");
     for(int i = 0; i < UI_LINES; i++) ObjectDelete(0, "UI_Line" + IntegerToString(i));
     ObjectDelete(0, "ProgBar_BG");
     ObjectDelete(0, "ProgBar_FG");
@@ -369,7 +444,42 @@ int ColorSide(color c, color supColor, color resColor) {
 void RefreshObjectCache() {
     g_ObjCount = ObjectsTotal(0, -1, -1);
     if(ArraySize(g_Objs) < g_ObjCount) ArrayResize(g_Objs, g_ObjCount, 256);
-    for(int i = 0; i < g_ObjCount; i++) g_Objs[i] = ObjectName(0, i, -1, -1);
+    for(int t = 0; t < 4; t++) g_SMCHasObjects[t] = false;
+    g_MPHasObjects = false;
+    for(int i = 0; i < g_ObjCount; i++) {
+        string n = ObjectName(0, i, -1, -1);
+        g_Objs[i] = n;
+        for(int t = 0; t < 4; t++)
+            if(!g_SMCHasObjects[t] && StringFind(n, SMCPrefix(t)) == 0) g_SMCHasObjects[t] = true;
+        if(!g_MPHasObjects && (StringFind(n, "Micro_MP_LVN_Top_") >= 0 || StringFind(n, "VP_LineVAH_") >= 0 ||
+                               StringFind(n, "KGVP_batas_atas_POC_") >= 0)) g_MPHasObjects = true;
+    }
+}
+
+string SMCPrefix(int tier) {
+    if(tier == 0) return SMC1_Prefix;
+    if(tier == 1) return SMC2_Prefix;
+    if(tier == 2) return SMC3_Prefix;
+    return SMCScout_Prefix;
+}
+
+int TierOfPrefix(string prefix) {
+    for(int t = 0; t < 4; t++) if(prefix == SMCPrefix(t)) return t;
+    return -1;
+}
+
+// AUTO: KG indicator objects win when present, otherwise the built-in engine. Scout is indicator-only.
+bool UseBuiltInSMC(int tier) {
+    if(tier < 0 || tier > 2) return false;
+    if(SMC_Source == SRC_BUILTIN) return true;
+    if(SMC_Source == SRC_INDICATOR) return false;
+    return !g_SMCHasObjects[tier];
+}
+
+bool UseBuiltInMP() {
+    if(MP_Source == SRC_BUILTIN) return true;
+    if(MP_Source == SRC_INDICATOR) return false;
+    return !g_MPHasObjects;
 }
 
 bool IsObjectActive(string objName) {
@@ -429,14 +539,16 @@ bool IsInZone(const EntryInfo &a) {
     return a.IsBox ? (a.DistancePips == 0) : (a.DistancePips <= ZoneTolerancePips);
 }
 
-void AddVote(int &trendList[], int slot, int vote, int &total, int &bull, int &bear) {
+void AddVote(int &trendList[], int slot, int vote, double weight, double &total, double &bull, double &bear) {
     trendList[slot] = vote;
-    total++;
-    if(vote == 1) bull++;
-    else if(vote == -1) bear++;
+    total += weight;
+    if(vote == 1) bull += weight;
+    else if(vote == -1) bear += weight;
 }
 
 double GetFibo50Price(string prefix, int trendDirection) {
+    int tier = TierOfPrefix(prefix);
+    if(UseBuiltInSMC(tier)) return SMCEquilibrium(tier);
     string objName = "";
     if(trendDirection == 1) objName = prefix + "FIBO_EA_BULL_50";
     else if(trendDirection == -1) objName = prefix + "FIBO_EA_BEAR_50";
@@ -514,7 +626,8 @@ void RunAnalysis() {
     double pip = GetPipValue();
 
     RefreshObjectCache();
-    if(UseTrend_VAPOC && TrendLogicMode == TREND_COLOR_CHANGE) TrackObjectColorChanges();
+    UpdateBuiltInEngines();
+    if(UseTrend_VAPOC && TrendLogicMode == TREND_COLOR_CHANGE && !UseBuiltInMP()) TrackObjectColorChanges();
 
     int activeSMCCount = (UseTrend_SMC1 ? 1 : 0) + (UseTrend_SMC2 ? 1 : 0) + (UseTrend_SMC3 ? 1 : 0);
     bool smcMatrixActive = (Use_SMC_Matrix && activeSMCCount >= 2);
@@ -569,53 +682,70 @@ void RunAnalysis() {
 
     d = NO_ZONE; t = 0; if(Use_KGSupDem_Entry)     t = GetKGSupDemStatus(price, d);     SetArea(list[16], "KG SupDem", true, d, t);
     d = NO_ZONE; t = 0; if(Use_KGSupDemFibo_Entry) t = GetKGSupDemFiboStatus(price, d); SetArea(list[17], "KG SupDem Fibo", false, d, t);
+    d = NO_ZONE; t = 0; if(Use_FVG1_Entry) t = GetFVGStatus(price, d, 0); SetArea(list[18], "FVG 1 " + TFName(SMCTimeframe(0)), true, d, t);
+    d = NO_ZONE; t = 0; if(Use_FVG2_Entry) t = GetFVGStatus(price, d, 1); SetArea(list[19], "FVG 2 " + TFName(SMCTimeframe(1)), true, d, t);
+    d = NO_ZONE; t = 0; if(Use_FVG3_Entry) t = GetFVGStatus(price, d, 2); SetArea(list[20], "FVG 3 " + TFName(SMCTimeframe(2)), true, d, t);
 
     // ====================================================================
     // TAHAP 2: KALKULASI TREN & SMC MATRIX
     // ====================================================================
-    int totalTools = 0, bullScore = 0, bearScore = 0;
+    // Weighted vote: structure (SMC) > value (Market Profile) > volume (VWAP) > MA family (BBMA, MA Cross).
+    double totalTools = 0, bullScore = 0, bearScore = 0;
     int trendList[TREND_SLOTS];
     ArrayInitialize(trendList, -99);
     string smcFilterText = "SMC Matrix: OFF";
+    int smcBias = 0;
 
     if(smcMatrixActive) {
         int sMin = UseTrend_SMC1 ? GetRealtimeSMCTrend(SMC1_Prefix) : 0;
         int sMid = UseTrend_SMC2 ? GetRealtimeSMCTrend(SMC2_Prefix) : 0;
         int sMaj = UseTrend_SMC3 ? GetRealtimeSMCTrend(SMC3_Prefix) : 0;
-        int smcVote = EvaluateSMCMatrix(price, sMin, sMid, sMaj, up1, dn1, up2, dn2, smcFilterText);
-        AddVote(trendList, 1, smcVote, totalTools, bullScore, bearScore);
+        smcBias = EvaluateSMCMatrix(price, sMin, sMid, sMaj, up1, dn1, up2, dn2, smcFilterText);
+        AddVote(trendList, 1, smcBias, W_SMC, totalTools, bullScore, bearScore);
     } else {
-        if(UseTrend_SMC1) AddVote(trendList, 1, GetRealtimeSMCTrend(SMC1_Prefix), totalTools, bullScore, bearScore);
-        if(UseTrend_SMC2) AddVote(trendList, 2, GetRealtimeSMCTrend(SMC2_Prefix), totalTools, bullScore, bearScore);
-        if(UseTrend_SMC3) AddVote(trendList, 9, GetRealtimeSMCTrend(SMC3_Prefix), totalTools, bullScore, bearScore);
+        int s1 = 0, s2 = 0, s3 = 0;
+        if(UseTrend_SMC1) { s1 = GetRealtimeSMCTrend(SMC1_Prefix); AddVote(trendList, 1, s1, W_SMC, totalTools, bullScore, bearScore); }
+        if(UseTrend_SMC2) { s2 = GetRealtimeSMCTrend(SMC2_Prefix); AddVote(trendList, 2, s2, W_SMC, totalTools, bullScore, bearScore); }
+        if(UseTrend_SMC3) { s3 = GetRealtimeSMCTrend(SMC3_Prefix); AddVote(trendList, 9, s3, W_SMC, totalTools, bullScore, bearScore); }
+        // Bias = highest active timeframe (ICT top-down)
+        smcBias = UseTrend_SMC3 ? s3 : (UseTrend_SMC2 ? s2 : s1);
     }
 
-    if(UseTrend_BBMA1) AddVote(trendList, 5, tBB1, totalTools, bullScore, bearScore);
-    if(UseTrend_BBMA2) AddVote(trendList, 6, tBB2, totalTools, bullScore, bearScore);
-    if(UseTrend_VAPOC) AddVote(trendList, 0, GetRealtimeVAPOCTrendColor(price), totalTools, bullScore, bearScore);
-    if(UseTrend_VWAP1) AddVote(trendList, 3, tVWAP1, totalTools, bullScore, bearScore);
-    if(UseTrend_VWAP2) AddVote(trendList, 4, tVWAP2, totalTools, bullScore, bearScore);
-    if(UseTrend_EMA)   AddVote(trendList, 7, GetEMACrossTrend(EMA_Fast_Period, EMA_Slow_Period), totalTools, bullScore, bearScore);
-    if(UseTrend_EMA2)  AddVote(trendList, 8, GetEMACrossTrend(EMA2_Fast_Period, EMA2_Slow_Period), totalTools, bullScore, bearScore);
+    if(UseTrend_BBMA1) AddVote(trendList, 5, tBB1, W_BBMA, totalTools, bullScore, bearScore);
+    if(UseTrend_BBMA2) AddVote(trendList, 6, tBB2, W_BBMA, totalTools, bullScore, bearScore);
+    if(UseTrend_VAPOC) AddVote(trendList, 0, GetRealtimeVAPOCTrendColor(price), W_VAPOC, totalTools, bullScore, bearScore);
+    if(UseTrend_VWAP1) AddVote(trendList, 3, tVWAP1, W_VWAP, totalTools, bullScore, bearScore);
+    if(UseTrend_VWAP2) AddVote(trendList, 4, tVWAP2, W_VWAP, totalTools, bullScore, bearScore);
+    if(UseTrend_EMA)   AddVote(trendList, 7, GetEMACrossTrend(EMA_Fast_Period, EMA_Slow_Period), W_MA, totalTools, bullScore, bearScore);
+    if(UseTrend_EMA2)  AddVote(trendList, 8, GetEMACrossTrend(EMA2_Fast_Period, EMA2_Slow_Period), W_MA, totalTools, bullScore, bearScore);
 
     // ====================================================================
     // TAHAP 3: PERSENTASE & TREN FINAL
     // ====================================================================
     double bullPercent = 0.0, bearPercent = 0.0;
     if(totalTools > 0) {
-        bullPercent = ((double)bullScore / totalTools) * 100.0;
-        bearPercent = ((double)bearScore / totalTools) * 100.0;
+        bullPercent = (bullScore / totalTools) * 100.0;
+        bearPercent = (bearScore / totalTools) * 100.0;
     }
 
-    // Strict = 100% searah. Loose = strictly above 50% (a 50/50 split stays NETRAL).
-    bool strictMode = (TrendValidityMode == TREND_STRICT);
-    bool bullValid = strictMode ? (bullPercent >= 100.0) : (bullPercent > 50.0);
-    bool bearValid = strictMode ? (bearPercent >= 100.0) : (bearPercent > 50.0);
+    // Strict = 100% searah. Loose = strictly above 50%. Weighted = score >= MinConfirmPct.
+    bool bullValid, bearValid;
+    if(TrendValidityMode == TREND_STRICT)     { bullValid = (bullPercent >= 99.999); bearValid = (bearPercent >= 99.999); }
+    else if(TrendValidityMode == TREND_LOOSE) { bullValid = (bullPercent > 50.0);    bearValid = (bearPercent > 50.0); }
+    else                                      { bullValid = (bullPercent >= MinConfirmPct); bearValid = (bearPercent >= MinConfirmPct); }
+
+    // ICT top-down: the SMC bias must agree with the score.
+    bool smcInUse = (UseTrend_SMC1 || UseTrend_SMC2 || UseTrend_SMC3);
+    bool biasBlocked = false;
+    if(SMC_BiasMandatory && smcInUse) {
+        if(bullValid && smcBias != 1)  { bullValid = false; biasBlocked = true; }
+        if(bearValid && smcBias != -1) { bearValid = false; biasBlocked = true; }
+    }
 
     int finalTrend = 0;
     string trendText = "";
 
-    if(totalTools == 0) {
+    if(totalTools <= 0) {
         trendText = "SEMUA ALAT TREND OFF";
     } else if(bullValid) {
         finalTrend = 1;
@@ -624,7 +754,7 @@ void RunAnalysis() {
         finalTrend = -1;
         trendText = DoubleToStr(bearPercent, 0) + "% SELLERS";
     } else {
-        trendText = "NETRAL (" + DoubleToStr(MathMax(bullPercent, bearPercent), 0) + "%)";
+        trendText = "NETRAL (" + DoubleToStr(MathMax(bullPercent, bearPercent), 0) + "%" + (biasBlocked ? ", BIAS SMC BEDA)" : ")");
     }
 
     if(CloseOppositeTrend && finalTrend != 0) CheckTrendReversalClose(finalTrend);
@@ -712,7 +842,7 @@ void RunAnalysis() {
 
     bool canBuyUI  = !tradeBlocked && !isBuyLimitReached  && (TradingMode == MODE_MANUAL || finalSignalBuy);
     bool canSellUI = !tradeBlocked && !isSellLimitReached && (TradingMode == MODE_MANUAL || finalSignalSell);
-    UpdatePanel(bullPercent, bearPercent, trendText, smcFilterText, ictText, ictOk, list, canBuyUI, canSellUI, trendList, smcMatrixActive, finalTrend);
+    UpdatePanel(bullPercent, bearPercent, trendText, smcFilterText, ictText, ictOk, SourceText(), list, canBuyUI, canSellUI, trendList, smcMatrixActive, finalTrend);
 
     static bool buyAlertLock = false;
     static bool sellAlertLock = false;
@@ -820,6 +950,285 @@ int EvaluateSMCMatrix(double price, int tMin, int tMid, int tMaj,
 }
 
 // ====================================================================
+// --- BUILT-IN SMC ENGINE (closed bars only, recalculated once per bar of its timeframe) ---
+// Swing = fractal with SMC_SwingLen bars each side. A close beyond the last unbroken swing
+// is a BOS/CHoCH and sets the trend, the dealing range (leg low/high) and the Order Block
+// (last opposite candle of the leg). Fair value gaps are 3-candle imbalances.
+// ====================================================================
+int SMCTimeframe(int tier) {
+    int tf = SMC1_TF;
+    if(tier == 1) tf = SMC2_TF;
+    else if(tier == 2) tf = SMC3_TF;
+    return (tf == PERIOD_CURRENT) ? Period() : tf;
+}
+
+string TFName(int tf) {
+    switch(tf) {
+        case PERIOD_M1:  return "M1";
+        case PERIOD_M5:  return "M5";
+        case PERIOD_M15: return "M15";
+        case PERIOD_M30: return "M30";
+        case PERIOD_H1:  return "H1";
+        case PERIOD_H4:  return "H4";
+        case PERIOD_D1:  return "D1";
+        case PERIOD_W1:  return "W1";
+        case PERIOD_MN1: return "MN";
+    }
+    return IntegerToString(tf);
+}
+
+bool IsSwingHigh(int tf, int p, int k) {
+    double h = iHigh(Symbol(), tf, p);
+    for(int j = 1; j <= k; j++)
+        if(iHigh(Symbol(), tf, p + j) >= h || iHigh(Symbol(), tf, p - j) > h) return false;
+    return true;
+}
+
+bool IsSwingLow(int tf, int p, int k) {
+    double l = iLow(Symbol(), tf, p);
+    for(int j = 1; j <= k; j++)
+        if(iLow(Symbol(), tf, p + j) <= l || iLow(Symbol(), tf, p - j) < l) return false;
+    return true;
+}
+
+void CalcSMC(int tier) {
+    int tf = SMCTimeframe(tier);
+    datetime t0 = iTime(Symbol(), tf, 0);
+    if(t0 == 0 || t0 == g_SMC[tier].barTime) return;
+
+    int k = SMC_SwingLen;
+    int bars = iBars(Symbol(), tf);
+    int n = (int)MathMin(SMC_Lookback, bars - 2 * k - 3);
+    if(n < 4 * k + 3) return;   // not enough history yet; retried next pass
+
+    int trend = 0;
+    double swingHigh = 0, swingLow = 0;
+    int swingHighBar = -1, swingLowBar = -1;
+    bool highLive = false, lowLive = false;
+    double rangeHigh = 0, rangeLow = 0;
+    double obBT = 0, obBB = 0, obST = 0, obSB = 0;
+    datetime obBTime = 0, obSTime = 0;
+    double fBT = 0, fBB = 0, fST = 0, fSB = 0;
+    datetime fBTime = 0, fSTime = 0;
+    double minGap = MinFVGPips * GetPipValue();
+
+    for(int s = n; s >= 1; s--) {
+        double hi = iHigh(Symbol(), tf, s);
+        double lo = iLow(Symbol(), tf, s);
+        double cl = iClose(Symbol(), tf, s);
+
+        // 1. Swing at p = s + k is now confirmed (k newer bars exist)
+        int p = s + k;
+        if(IsSwingHigh(tf, p, k)) { swingHigh = iHigh(Symbol(), tf, p); swingHighBar = p; highLive = true; }
+        if(IsSwingLow(tf, p, k))  { swingLow = iLow(Symbol(), tf, p);   swingLowBar = p;  lowLive = true; }
+
+        // 2. Order Blocks die when closed through; FVGs die when fully filled
+        if(obBT > 0 && cl < obBB) { obBT = 0; obBB = 0; obBTime = 0; }
+        if(obST > 0 && cl > obST) { obST = 0; obSB = 0; obSTime = 0; }
+        if(fBT > 0 && lo <= fBB)  { fBT = 0; fBB = 0; fBTime = 0; }
+        if(fST > 0 && hi >= fST)  { fST = 0; fSB = 0; fSTime = 0; }
+
+        // 3. Break of structure / change of character (candle close beyond the swing)
+        if(highLive && cl > swingHigh) {
+            highLive = false;
+            trend = 1;
+            int lim = (swingLowBar > s) ? swingLowBar : (int)MathMin(s + 20, bars - 1);
+            rangeHigh = hi;
+            rangeLow = lo;
+            for(int j = s; j <= lim; j++) rangeLow = MathMin(rangeLow, iLow(Symbol(), tf, j));
+            for(int m = s; m <= lim; m++) {
+                if(iClose(Symbol(), tf, m) < iOpen(Symbol(), tf, m)) {   // last down candle of the leg
+                    obBT = iHigh(Symbol(), tf, m); obBB = iLow(Symbol(), tf, m); obBTime = iTime(Symbol(), tf, m);
+                    break;
+                }
+            }
+        } else if(lowLive && cl < swingLow) {
+            lowLive = false;
+            trend = -1;
+            int lim2 = (swingHighBar > s) ? swingHighBar : (int)MathMin(s + 20, bars - 1);
+            rangeLow = lo;
+            rangeHigh = hi;
+            for(int j2 = s; j2 <= lim2; j2++) rangeHigh = MathMax(rangeHigh, iHigh(Symbol(), tf, j2));
+            for(int m2 = s; m2 <= lim2; m2++) {
+                if(iClose(Symbol(), tf, m2) > iOpen(Symbol(), tf, m2)) {  // last up candle of the leg
+                    obST = iHigh(Symbol(), tf, m2); obSB = iLow(Symbol(), tf, m2); obSTime = iTime(Symbol(), tf, m2);
+                    break;
+                }
+            }
+        }
+
+        // 4. Dealing range follows the trend extreme
+        if(trend == 1 && hi > rangeHigh) rangeHigh = hi;
+        if(trend == -1 && lo < rangeLow) rangeLow = lo;
+
+        // 5. New fair value gaps (candles s+2, s+1, s)
+        double h2 = iHigh(Symbol(), tf, s + 2);
+        double l2 = iLow(Symbol(), tf, s + 2);
+        if(lo - h2 >= minGap) { fBT = lo; fBB = h2; fBTime = iTime(Symbol(), tf, s + 2); }
+        if(l2 - hi >= minGap) { fST = l2; fSB = hi; fSTime = iTime(Symbol(), tf, s + 2); }
+    }
+
+    g_SMC[tier].trend = trend;
+    g_SMC[tier].rangeHigh = rangeHigh;
+    g_SMC[tier].rangeLow = rangeLow;
+    g_SMC[tier].obBullTop = obBT;  g_SMC[tier].obBullBot = obBB;  g_SMC[tier].obBullTime = obBTime;
+    g_SMC[tier].obBearTop = obST;  g_SMC[tier].obBearBot = obSB;  g_SMC[tier].obBearTime = obSTime;
+    g_SMC[tier].fvgBullTop = fBT;  g_SMC[tier].fvgBullBot = fBB;  g_SMC[tier].fvgBullTime = fBTime;
+    g_SMC[tier].fvgBearTop = fST;  g_SMC[tier].fvgBearBot = fSB;  g_SMC[tier].fvgBearTime = fSTime;
+    g_SMC[tier].barTime = t0;
+}
+
+void ResetSMCState(int tier) {
+    g_SMC[tier].barTime = 0;
+    g_SMC[tier].trend = 0;
+    g_SMC[tier].rangeHigh = 0;   g_SMC[tier].rangeLow = 0;
+    g_SMC[tier].obBullTop = 0;   g_SMC[tier].obBullBot = 0;   g_SMC[tier].obBullTime = 0;
+    g_SMC[tier].obBearTop = 0;   g_SMC[tier].obBearBot = 0;   g_SMC[tier].obBearTime = 0;
+    g_SMC[tier].fvgBullTop = 0;  g_SMC[tier].fvgBullBot = 0;  g_SMC[tier].fvgBullTime = 0;
+    g_SMC[tier].fvgBearTop = 0;  g_SMC[tier].fvgBearBot = 0;  g_SMC[tier].fvgBearTime = 0;
+}
+
+double SMCEquilibrium(int tier) {
+    if(tier < 0 || tier > 2) return 0.0;
+    double hi = g_SMC[tier].rangeHigh, lo = g_SMC[tier].rangeLow;
+    if(g_SMC[tier].trend == 0 || lo <= 0 || hi <= lo) return 0.0;
+    return (hi + lo) / 2.0;
+}
+
+int GetFVGStatus(double price, double &outDist, int tier) {
+    double minDist = NO_ZONE; int status = 0;
+    if(g_SMC[tier].fvgBullTop > 0) UpdateZone(price, g_SMC[tier].fvgBullTop, g_SMC[tier].fvgBullBot, 1, minDist, status);
+    if(g_SMC[tier].fvgBearTop > 0) UpdateZone(price, g_SMC[tier].fvgBearTop, g_SMC[tier].fvgBearBot, -1, minDist, status);
+    outDist = minDist;
+    return status;
+}
+
+// ====================================================================
+// --- BUILT-IN MARKET PROFILE (tick-volume profile of the last MP_LookbackHours) ---
+// ====================================================================
+void CalcMarketProfile() {
+    int tf = MP_Timeframe;
+    if(tf == PERIOD_CURRENT) tf = Period();
+    datetime t0 = iTime(Symbol(), tf, 0);
+    if(t0 == 0 || t0 == g_MPBarTime) return;
+
+    int nb = (int)MathMin(MP_LookbackHours * 60 / tf, iBars(Symbol(), tf) - 2);
+    if(nb < 10) return;
+
+    double hi = iHigh(Symbol(), tf, iHighest(Symbol(), tf, MODE_HIGH, nb, 1));
+    double lo = iLow(Symbol(), tf, iLowest(Symbol(), tf, MODE_LOW, nb, 1));
+    double bin = MP_BinPips * GetPipValue();
+    if(hi <= lo || bin <= 0) return;
+    if((hi - lo) / bin > 2000) bin = (hi - lo) / 2000.0;
+    int nbins = (int)((hi - lo) / bin) + 1;
+    if(nbins < 3) return;
+
+    double vol[];
+    ArrayResize(vol, nbins);
+    ArrayInitialize(vol, 0.0);
+    double total = 0;
+    for(int s = 1; s <= nb; s++) {
+        double v = (double)iVolume(Symbol(), tf, s);
+        if(v <= 0) v = 1;
+        int a = (int)MathMax(0, MathMin(nbins - 1, (iLow(Symbol(), tf, s) - lo) / bin));
+        int b = (int)MathMax(0, MathMin(nbins - 1, (iHigh(Symbol(), tf, s) - lo) / bin));
+        double share = v / (b - a + 1);
+        for(int x = a; x <= b; x++) vol[x] += share;
+        total += v;
+    }
+
+    int poc = ArrayMaximum(vol);
+    int loI = poc, hiI = poc;
+    double acc = vol[poc];
+    double target = total * MP_ValueAreaPct / 100.0;
+    while(acc < target) {
+        double up = (hiI + 1 < nbins) ? vol[hiI + 1] : -1.0;
+        double dn = (loI - 1 >= 0) ? vol[loI - 1] : -1.0;
+        if(up < 0 && dn < 0) break;
+        if(up >= dn) { hiI++; acc += up; }
+        else         { loI--; acc += dn; }
+    }
+
+    g_MPBin = bin;
+    g_MPPoc = lo + (poc + 0.5) * bin;
+    g_MPVah = lo + (hiI + 1) * bin;
+    g_MPVal = lo + loI * bin;
+    g_MPBarTime = t0;
+}
+
+void UpdateBuiltInEngines() {
+    for(int t = 0; t < 3; t++) {
+        bool fvgUsed = (t == 0 && Use_FVG1_Entry) || (t == 1 && Use_FVG2_Entry) || (t == 2 && Use_FVG3_Entry);
+        if(UseBuiltInSMC(t) || fvgUsed) CalcSMC(t);
+    }
+    if(UseBuiltInMP()) CalcMarketProfile();
+    if(DrawBuiltIn) DrawBuiltInLevels();
+}
+
+// ====================================================================
+// --- GAMBAR LEVEL BUILT-IN (prefix KGEA_, never matched by the KG scanners) ---
+// ====================================================================
+void DrawHLine(string name, double price, color c, int style, string tip) {
+    if(price <= 0) { ObjectDelete(0, name); return; }
+    if(ObjectFind(0, name) < 0) {
+        ObjectCreate(0, name, OBJ_HLINE, 0, 0, price);
+        ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, name, OBJPROP_BACK, true);
+    }
+    ObjectSetDouble(0, name, OBJPROP_PRICE, 0, price);
+    ObjectSetInteger(0, name, OBJPROP_COLOR, c);
+    ObjectSetInteger(0, name, OBJPROP_STYLE, style);
+    ObjectSetString(0, name, OBJPROP_TOOLTIP, tip);
+}
+
+void DrawRect(string name, datetime t1, double p1, double p2, color c, string tip) {
+    if(p1 <= 0 || p2 <= 0 || t1 == 0) { ObjectDelete(0, name); return; }
+    datetime t2 = Time[0] + PeriodSeconds() * 10;
+    if(ObjectFind(0, name) < 0) {
+        ObjectCreate(0, name, OBJ_RECTANGLE, 0, t1, p1, t2, p2);
+        ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, name, OBJPROP_BACK, true);
+    }
+    ObjectSetInteger(0, name, OBJPROP_TIME, 0, t1);
+    ObjectSetInteger(0, name, OBJPROP_TIME, 1, t2);
+    ObjectSetDouble(0, name, OBJPROP_PRICE, 0, p1);
+    ObjectSetDouble(0, name, OBJPROP_PRICE, 1, p2);
+    ObjectSetInteger(0, name, OBJPROP_COLOR, c);
+    ObjectSetString(0, name, OBJPROP_TOOLTIP, tip);
+}
+
+void DrawBuiltInLevels() {
+    bool mp = UseBuiltInMP();
+    DrawHLine("KGEA_MP_POC", mp ? g_MPPoc : 0, clrDarkOrange, STYLE_SOLID, "Built-in POC");
+    DrawHLine("KGEA_MP_VAH", mp ? g_MPVah : 0, clrSteelBlue, STYLE_DASH, "Built-in VAH");
+    DrawHLine("KGEA_MP_VAL", mp ? g_MPVal : 0, clrSteelBlue, STYLE_DASH, "Built-in VAL");
+
+    color obBull  = g_LightChart ? C'200,235,200' : C'0,60,0';
+    color obBear  = g_LightChart ? C'245,205,205' : C'70,0,0';
+    color fvgBull = g_LightChart ? C'205,220,250' : C'0,30,80';
+    color fvgBear = g_LightChart ? C'250,225,195' : C'80,40,0';
+
+    for(int t = 0; t < 3; t++) {
+        string tag = "KGEA_S" + IntegerToString(t + 1) + "_";
+        string tfn = TFName(SMCTimeframe(t));
+        bool bi = UseBuiltInSMC(t);
+        bool fvgUsed = (t == 0 && Use_FVG1_Entry) || (t == 1 && Use_FVG2_Entry) || (t == 2 && Use_FVG3_Entry);
+        DrawHLine(tag + "EQ", bi ? SMCEquilibrium(t) : 0, clrGray, STYLE_DOT, "SMC " + tfn + " Equilibrium 50%");
+        DrawRect(tag + "OBB", g_SMC[t].obBullTime, bi ? g_SMC[t].obBullTop : 0, g_SMC[t].obBullBot, obBull, "Bullish OB " + tfn);
+        DrawRect(tag + "OBS", g_SMC[t].obBearTime, bi ? g_SMC[t].obBearTop : 0, g_SMC[t].obBearBot, obBear, "Bearish OB " + tfn);
+        DrawRect(tag + "FVGB", g_SMC[t].fvgBullTime, fvgUsed ? g_SMC[t].fvgBullTop : 0, g_SMC[t].fvgBullBot, fvgBull, "Bullish FVG " + tfn);
+        DrawRect(tag + "FVGS", g_SMC[t].fvgBearTime, fvgUsed ? g_SMC[t].fvgBearTop : 0, g_SMC[t].fvgBearBot, fvgBear, "Bearish FVG " + tfn);
+    }
+}
+
+// Panel line: which source feeds each tool (KG = indicator objects, BI = built-in).
+string SourceText() {
+    string txt = "Sumber SMC ";
+    for(int t = 0; t < 3; t++) txt += TFName(SMCTimeframe(t)) + ":" + (UseBuiltInSMC(t) ? "BI " : "KG ");
+    return txt + "| MP:" + (UseBuiltInMP() ? "BI" : "KG");
+}
+
+// ====================================================================
 // --- FUNGSI AREA & JARAK ---
 // ====================================================================
 // Pairs of horizontal lines (top + bottom); the top line colour decides the side.
@@ -838,6 +1247,16 @@ void ScanLinePairZones(double price, string topKey, string botFrom, string botTo
 
 int GetValueAreaStatus(double price, double &outDist) {
     double minDist = NO_ZONE; int status = 0;
+    if(UseBuiltInMP()) {
+        // Built-in: buy at the bottom edge of value (VAL), sell at the top edge (VAH).
+        if(g_MPVal > 0 && g_MPVah > g_MPVal) {
+            double edge = MathMax((g_MPVah - g_MPVal) * 0.15, g_MPBin);
+            UpdateZone(price, g_MPVal, g_MPVal + edge, 1, minDist, status);
+            UpdateZone(price, g_MPVah - edge, g_MPVah, -1, minDist, status);
+        }
+        outDist = minDist;
+        return status;
+    }
     ScanLinePairZones(price, "Micro_MP_LVN_Top_", "_Top_", "_Bot_", minDist, status);
     ScanLinePairZones(price, "VP_LineVAH_", "LineVAH_", "LineVAL_", minDist, status);
     outDist = minDist;
@@ -846,6 +1265,11 @@ int GetValueAreaStatus(double price, double &outDist) {
 
 int GetPOCStatus(double price, double &outDist) {
     double minDist = NO_ZONE; int status = 0;
+    if(UseBuiltInMP()) {
+        if(g_MPPoc > 0) UpdateZone(price, g_MPPoc - g_MPBin / 2, g_MPPoc + g_MPBin / 2, (price >= g_MPPoc) ? 1 : -1, minDist, status);
+        outDist = minDist;
+        return status;
+    }
     ScanLinePairZones(price, "KGVP_batas_atas_POC_", "batas_atas", "batas_bawah", minDist, status);
     outDist = minDist;
     return status;
@@ -864,6 +1288,13 @@ int GetSnDStatus(double price, double &outDist) {
 
 int GetOBStatus(double price, double &outDist, string prefix) {
     double minDist = NO_ZONE; int status = 0;
+    int tier = TierOfPrefix(prefix);
+    if(UseBuiltInSMC(tier)) {
+        if(g_SMC[tier].obBullTop > 0) UpdateZone(price, g_SMC[tier].obBullTop, g_SMC[tier].obBullBot, 1, minDist, status);
+        if(g_SMC[tier].obBearTop > 0) UpdateZone(price, g_SMC[tier].obBearTop, g_SMC[tier].obBearBot, -1, minDist, status);
+        outDist = minDist;
+        return status;
+    }
     for(int i = 0; i < g_ObjCount; i++) {
         string n = g_Objs[i];
         if(StringFind(n, prefix) != 0 || StringFind(n, "_OB_") <= 0 || !IsObjectActive(n)) continue;
@@ -890,6 +1321,22 @@ int GetKGSupDemStatus(double price, double &outDist) {
 
 int GetSMCFiboStatus(double price, double &outDist, string prefix) {
     double closest = NO_ZONE; int type = 0;
+    int tier = TierOfPrefix(prefix);
+    if(UseBuiltInSMC(tier)) {
+        int dir = g_SMC[tier].trend;
+        double hi = g_SMC[tier].rangeHigh, lo = g_SMC[tier].rangeLow;
+        if(dir != 0 && hi > lo && lo > 0) {
+            double levels[3] = {0.5, 0.618, 0.786};
+            for(int k = ICT_OTEOnly ? 1 : 0; k < 3; k++) {
+                // Retracement of the current leg: from the high for a bull leg, from the low for a bear leg.
+                double lvl = (dir == 1) ? hi - levels[k] * (hi - lo) : lo + levels[k] * (hi - lo);
+                double dist = MathAbs(price - lvl) / GetPipValue();
+                if(dist < closest) { closest = dist; type = dir; }
+            }
+        }
+        outDist = closest;
+        return type;
+    }
     for(int i = 0; i < g_ObjCount; i++) {
         string n = g_Objs[i];
         // Only real Fibo level lines (50/61/78/100). OB, BOS and CHoCH objects of the
@@ -965,6 +1412,8 @@ int GetEMACrossTrend(ENUM_KG_TIMEFRAME fastTF, ENUM_KG_TIMEFRAME slowTF) {
 }
 
 int GetRealtimeSMCTrend(string prefix) {
+    int tier = TierOfPrefix(prefix);
+    if(UseBuiltInSMC(tier)) return g_SMC[tier].trend;
     datetime latestTime = 0;
     int detectedTrend = 0;
     for(int i = 0; i < g_ObjCount; i++) {
@@ -989,6 +1438,14 @@ bool IsVAPOCTrendObject(string n) {
 }
 
 int GetRealtimeVAPOCTrendColor(double price) {
+    // Built-in: outside value = breakout direction, inside value = side of the POC.
+    if(UseBuiltInMP()) {
+        if(g_MPPoc <= 0) return 0;
+        if(price > g_MPVah) return 1;
+        if(price < g_MPVal) return -1;
+        return (price >= g_MPPoc) ? 1 : -1;
+    }
+
     // 1. Prioritas: objek MASTER dari indikator
     string masterTop = "Micro_MP_LVN_Top_MASTER";
     if(ObjectFind(0, masterTop) >= 0) return ColorSide(ObjColor(masterTop), SupZoneColor, ResZoneColor);
@@ -1658,7 +2115,7 @@ int SetLine(int line, string text, color c) {
     return line + 1;
 }
 
-void UpdatePanel(double bullPct, double bearPct, string trendText, string smcText, string ictText, bool ictOk, EntryInfo &list[],
+void UpdatePanel(double bullPct, double bearPct, string trendText, string smcText, string ictText, bool ictOk, string srcText, EntryInfo &list[],
                  bool canBuy, bool canSell, int &trendList[], bool smcActive, int finalTrend) {
     string separator = "========================================";
     double maxPct = MathMax(bullPct, bearPct);
@@ -1706,10 +2163,9 @@ void UpdatePanel(double bullPct, double bearPct, string trendText, string smcTex
         line = SetLine(line, separator, g_ColText);
     }
 
-    if(ictText != "") {
-        line = SetLine(line, "[ICT] " + ictText, ictOk ? g_ColBuy : g_ColWarn);
-        line = SetLine(line, separator, g_ColText);
-    }
+    if(ictText != "") line = SetLine(line, "[ICT] " + ictText, ictOk ? g_ColBuy : g_ColWarn);
+    line = SetLine(line, "[SRC] " + srcText, g_ColNeutral);
+    line = SetLine(line, separator, g_ColText);
 
     line = SetLine(line, ">> ACTIVE ENTRY AREAS:", g_ColHighlight);
 

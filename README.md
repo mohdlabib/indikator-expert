@@ -113,6 +113,62 @@ The EA is tuned for XAUUSD and SMC/ICT entries.
 | `MaxDailyLossPct` | 3 | 3% of day-start balance |
 | `TrailingStartPips` / `TrailingDistance` / `TrailingStep` | 1500 / 700 / 200 | $15 / $7 / $2 |
 
+## Built-in indicators and combined confirmation
+
+### Data sources (`SMC_Source`, `MP_Source`)
+
+| Mode | Behaviour |
+| --- | --- |
+| `SRC_AUTO` (default) | Uses the KG indicator objects when they are on the chart, otherwise the built-in engine. Decided per SMC tier and for Market Profile. |
+| `SRC_INDICATOR` | KG indicator objects only (previous behaviour). |
+| `SRC_BUILTIN` | Built-in engines only; the EA works without the KG indicators (also in the Strategy Tester). |
+
+The panel line `[SRC]` shows what is in use, e.g. `M5:BI H1:KG H4:KG | MP:BI` (`BI` = built-in,
+`KG` = indicator).
+
+### Built-in SMC (per tier: `SMC1_TF`/`SMC2_TF`/`SMC3_TF`, default M5/H1/H4)
+
+Closed bars only, recalculated once per bar of each timeframe.
+
+- **Swings:** fractal with `SMC_SwingLen` bars on each side, over the last `SMC_Lookback` bars.
+- **BOS/CHoCH:** a candle close beyond the last unbroken swing high/low sets the trend.
+- **Dealing range:** leg low to leg high of the latest break (extended with the trend);
+  equilibrium = 50%. Feeds the SMC matrix, Premium/Discount and the SMC Fibo areas
+  (50 / 61.8 / 78.6, or OTE only).
+- **Order Block:** the last opposite candle of the breaking leg; removed when a candle closes
+  through it.
+- **Fair Value Gap:** 3-candle imbalance of at least `MinFVGPips`; removed when filled. New entry
+  areas `FVG 1/2/3` (`Use_FVG*_Entry`, also selectable as `PrimaryArea`).
+
+### Built-in Market Profile
+
+Tick-volume profile of the last `MP_LookbackHours` on `MP_Timeframe`, `MP_BinPips` per level.
+POC = highest-volume level, Value Area = `MP_ValueAreaPct` around the POC.
+
+- Trend vote: above VAH = buy, below VAL = sell, inside value = side of the POC.
+- Entry areas: the bottom 15% of the value area (support), the top 15% (resistance) and the POC.
+
+`DrawBuiltIn` draws the built-in POC/VAH/VAL, SMC equilibrium, Order Blocks and FVGs
+(objects prefixed `KGEA_`, removed with the EA).
+
+### Combined confirmation (`TrendValidityMode = TREND_WEIGHTED`, default)
+
+All trend tools (SMC, VA/POC, VWAP 1/2, BBMA 1/2, MA Cross 1/2) are on by default and vote with
+weights, so related tools do not count the same information several times:
+
+| Tool | Weight | Category |
+| --- | --- | --- |
+| SMC (matrix or each tier) | `W_SMC = 3` | Market structure |
+| VA/POC | `W_VAPOC = 2` | Value |
+| VWAP 1, VWAP 2 | `W_VWAP = 1` each | Volume |
+| BBMA 1, BBMA 2 | `W_BBMA = 1` each | MA family |
+| MA Cross 1, MA Cross 2 | `W_MA = 1` each | MA family |
+
+A direction is valid when its weighted score is at least `MinConfirmPct` (70%) **and**, with
+`SMC_BiasMandatory = true`, the SMC bias (matrix vote, or the highest active SMC timeframe) points
+the same way. Otherwise the panel shows `NETRAL (..%, BIAS SMC BEDA)`. `TREND_STRICT` and
+`TREND_LOOSE` remain available and also use the weights.
+
 ## Notes
 
 - `RiskPercent` cannot go below the broker's minimum lot: when the calculated lot is smaller,
