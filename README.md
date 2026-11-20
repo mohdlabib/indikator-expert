@@ -199,6 +199,38 @@ the KG indicator.
 A previously saved `.set` file overrides these defaults; load it only to return to the old
 swing setup.
 
+## KG BOS CHOCH OrderBlock indicator (10.00)
+
+File: `KG BOS CHOCH OrderBlock.mq4` (same file name as the original, so it replaces it in
+`MQL4/Indicators/`). Existing inputs keep their names; new options are appended.
+
+### Audit findings in 9.06 and fixes
+
+| # | Finding (9.06) | Impact | Fix (10.00) |
+| --- | --- | --- | --- |
+| 1 | BOS/CHoCH evaluated on the forming bar 0 (`BREAK_BODY` uses the live close). | Structure flips appear and disappear inside a candle; the EA closes/opens on phantom CHoCH. | `ConfirmOnClose = true`: only closed candles are used. |
+| 2 | Full rebuild of 1,000 HTF bars (plus one `iCustom(ZigZag)` per bar and an O(objects x lines) cleanup) on **every tick**. | High CPU on XAUUSD tick rates, terminal lag with 4 instances. | Rebuild once per new chart/HTF bar (or when HTF history finishes loading). |
+| 3 | ZigZag swings are registered at the pivot bar although ZigZag only knows them later; its last leg repaints. | History shows breaks earlier than they were knowable (look-ahead), live results differ. | New `SWING_FRACTAL` mode (default): a pivot is used only after `Fractal_Bars` closed bars confirm it. ZigZag and MA Cross remain available. |
+| 4 | When an OB was touched it changed colour (`ColorOnMitigation`), and the EA identified OBs by colour. | The EA lost the OB exactly when price entered it (no OB entries); custom colours also broke detection. | OB side is in the name (`_OB_BULL_`/`_OB_BEAR_`) and the state in `OBJPROP_TEXT` (`OB|BULL|FRESH` or `OB|BULL|MIT|<time>`). The EA reads the name and allows a touched OB for `OB_MitigationGraceMin` minutes after the first touch. |
+| 5 | Classic OB had no displacement requirement (`RequireFVG` only applied to the 4-candle model). | Many weak OBs from slow legs. | `StdOB_RequireDisplacement = true`: an FVG >= `MinFVGPips` must exist between the OB and the breakout candle. `StdOB_Pick` chooses Decisional (previous behaviour) or Extreme OB. |
+| 6 | `OnInit`/`OnDeinit` deleted every prefixed object including the toggle button. | Button ON/OFF state was lost on every timeframe change. | Button is kept on timeframe change. |
+| 7 | Two OBs from the same candle could be added twice (same object name). | Duplicate entries, one never drawn. | Duplicate names are skipped. |
+| 8 | Pip size for gold depended on digits only. | — | XAUUSD/GOLD: 1 pip = $0.01 on 2- and 3-digit quotes, same as the EA. |
+| 9 | EA read any `<prefix>` object whose name contained 50/61/78/100 as a Fibo level (e.g. swing lines named `..._10:50:00`). | False Fibo zones. | EA only reads the indicator's `FIBO_EA_*` helper lines. |
+
+Also: M1 and D1 added to the timeframe list, BOS label anchors no longer depend on colours,
+legacy `OBJPROP_TIME1/PRICE1` calls replaced by the indexed API.
+
+### Suggested `MinFVGPips` for XAUUSD (1 pip = $0.01)
+
+| Indicator timeframe | `MinFVGPips` |
+| --- | --- |
+| M1 / M5 | 30 - 50 ($0.30 - $0.50) |
+| M15 / H1 | 80 - 120 ($0.80 - $1.20) |
+| H4 | 200 ($2) |
+
+`Indi_ID` must match the EA prefixes (`SMC_<Indi_ID>_`, e.g. `M5`, `H1`, `H4`, `Scout`).
+
 ## Notes
 
 - `RiskPercent` cannot go below the broker's minimum lot: when the calculated lot is smaller,

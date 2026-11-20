@@ -184,6 +184,7 @@ input bool     Use_KGSupDemFibo_Entry = true;  // Gunakan Area Fibo KG SupDem un
 input bool     Use_FVG1_Entry   = true;    // Gunakan Area FVG 1 (Built-in) untuk Entry
 input bool     Use_FVG2_Entry   = true;    // Gunakan Area FVG 2 (Built-in) untuk Entry
 input bool     Use_FVG3_Entry   = true;    // Gunakan Area FVG 3 (Built-in) untuk Entry
+input int      OB_MitigationGraceMin = 15;    // OB yang Sudah Disentuh Tetap Valid N Menit (-1 = Selalu)
 input int      ZoneTolerancePips= 60;         // Batas Toleransi Jarak Garis (Fibo, VWAP, BBMA) (Pips, 100 = $1)
 
 input string   Set_AO_Filter       = "====== KONFIRMASI AWESOME OSCILLATOR ======";
@@ -531,7 +532,9 @@ bool HasNumberToken(string s, string num) {
 }
 
 bool IsSMCFiboLevel(string name) {
-    if(StringFind(name, "_OB_") >= 0 || StringFind(name, "_CH_") >= 0 || StringFind(name, "_BOS_") >= 0) return false;
+    // Only the indicator's invisible EA helper lines ("<prefix>FIBO_EA_BULL_50" ...); swing lines,
+    // OBs and BOS/CHoCH objects carry timestamps such as "10:50:00" that would look like levels.
+    if(StringFind(name, "FIBO_EA_") < 0) return false;
     if(ICT_OTEOnly) return HasNumberToken(name, "61") || HasNumberToken(name, "78");   // ICT OTE band
     return HasNumberToken(name, "50") || HasNumberToken(name, "61") ||
            HasNumberToken(name, "78") || HasNumberToken(name, "100");
@@ -1322,10 +1325,26 @@ int GetOBStatus(double price, double &outDist, string prefix) {
     for(int i = 0; i < g_ObjCount; i++) {
         string n = g_Objs[i];
         if(StringFind(n, prefix) != 0 || StringFind(n, "_OB_") <= 0 || !IsObjectActive(n)) continue;
-        UpdateZone(price, ObjPrice(n, 0), ObjPrice(n, 1), ColorSide(ObjColor(n), OBSupColor, OBResColor), minDist, status);
+        if(!OBStillTradable(n)) continue;
+        // Side from the name (_OB_BULL_ / _OB_BEAR_), so mitigation colours or custom colours never hide an OB.
+        int side;
+        if(StringFind(n, "_OB_BULL") > 0)      side = 1;
+        else if(StringFind(n, "_OB_BEAR") > 0) side = -1;
+        else side = ColorSide(ObjColor(n), OBSupColor, OBResColor);   // other OB indicators
+        UpdateZone(price, ObjPrice(n, 0), ObjPrice(n, 1), side, minDist, status);
     }
     outDist = minDist;
     return status;
+}
+
+// KG BOS CHOCH OrderBlock 10+ writes "OB|BULL|FRESH" or "OB|BULL|MIT|<unix>" in OBJPROP_TEXT.
+// A touched OB stays tradable for OB_MitigationGraceMin minutes after the first touch (ICT first-touch entry).
+bool OBStillTradable(string name) {
+    if(OB_MitigationGraceMin < 0) return true;
+    string parts[];
+    if(StringSplit(ObjectGetString(0, name, OBJPROP_TEXT), '|', parts) < 4 || parts[2] != "MIT") return true;
+    datetime mitTime = (datetime)StringToInteger(parts[3]);
+    return (TimeCurrent() - mitTime <= OB_MitigationGraceMin * 60);
 }
 
 int GetKGSupDemStatus(double price, double &outDist) {
