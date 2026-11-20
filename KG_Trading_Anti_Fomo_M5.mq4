@@ -6,7 +6,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, Mang Koyod"
 #property link      "https://www.mql5.com"
-#property version   "10.1"
+#property version   "10.2"
 #property description "XAUUSD SMC/ICT EA - default inputs = semi-automatic scalping profile (M5 chart)."
 #property strict
 
@@ -390,18 +390,29 @@ int OnInit() {
     ArrayResize(g_TrackedColors, 0);
     ArrayResize(g_TrackedChangeTime, 0);
 
-    if(HideOneClickPanel) {
-        // Only record "shown" so a re-init (TF/parameter change) never overwrites it with false.
-        if(ChartGetInteger(0, CHART_SHOW_ONE_CLICK)) g_OneClickWasShown = true;
-        ChartSetInteger(0, CHART_SHOW_ONE_CLICK, false);
-    }
+    // MT4 can show the One Click panel again after OnInit (chart template / profile load,
+    // Alt+T), so it is hidden here and re-checked every second by the timer.
+    EnforceOneClickHidden();
+    EventSetTimer(1);
 
     InitPanelColors();
     CreatePanel();
     return(INIT_SUCCEEDED);
 }
 
+void OnTimer() {
+    EnforceOneClickHidden();
+}
+
+void EnforceOneClickHidden() {
+    if(!HideOneClickPanel || !ChartGetInteger(0, CHART_SHOW_ONE_CLICK)) return;
+    g_OneClickWasShown = true;   // remembered so it is given back when the EA is removed
+    ChartSetInteger(0, CHART_SHOW_ONE_CLICK, false);
+    ChartRedraw();
+}
+
 void OnDeinit(const int reason) {
+    EventKillTimer();
     ObjectsDeleteAll(0, "Btn_");
     ObjectsDeleteAll(0, "KGEA_");
     for(int i = 0; i < UI_LINES; i++) ObjectDelete(0, "UI_Line" + IntegerToString(i));
@@ -2317,7 +2328,7 @@ void PressButton(string name, int baseX, int type) {
 }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
-    if(id == CHARTEVENT_CHART_CHANGE) { InitPanelColors(); return; }   // e.g. background colour changed
+    if(id == CHARTEVENT_CHART_CHANGE) { InitPanelColors(); EnforceOneClickHidden(); return; }   // background / chart settings changed
     if(id != CHARTEVENT_OBJECT_CLICK) return;
     if(sparam == "Btn_Buy")  PressButton("Btn_Buy", PanelXDistance + baseXSize + 10, OP_BUY);
     if(sparam == "Btn_Sell") PressButton("Btn_Sell", PanelXDistance, OP_SELL);
